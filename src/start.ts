@@ -6,6 +6,7 @@ import consola from "consola"
 import { serve, type ServerHandler } from "srvx"
 import invariant from "tiny-invariant"
 
+import { loadModelAliases } from "./lib/model-map"
 import { ensurePaths } from "./lib/paths"
 import { initProxyFromEnv } from "./lib/proxy"
 import { generateEnvScript } from "./lib/shell"
@@ -13,6 +14,9 @@ import { state } from "./lib/state"
 import { setupCopilotToken, setupGitHubToken } from "./lib/token"
 import { cacheModels, cacheVSCodeVersion } from "./lib/utils"
 import { server } from "./server"
+
+// Enable timestamps in consola log output
+consola.options.formatOptions.date = true
 
 interface RunServerOptions {
   port: number
@@ -49,6 +53,7 @@ export async function runServer(options: RunServerOptions): Promise<void> {
 
   await ensurePaths()
   await cacheVSCodeVersion()
+  loadModelAliases()
 
   if (options.githubToken) {
     state.githubToken = options.githubToken

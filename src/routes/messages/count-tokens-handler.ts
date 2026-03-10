@@ -2,6 +2,7 @@ import type { Context } from "hono"
 
 import consola from "consola"
 
+import { resolveModelName } from "~/lib/model-map"
 import { state } from "~/lib/state"
 import { getTokenCount } from "~/lib/tokenizer"
 
@@ -16,11 +17,12 @@ export async function handleCountTokens(c: Context) {
     const anthropicBeta = c.req.header("anthropic-beta")
 
     const anthropicPayload = await c.req.json<AnthropicMessagesPayload>()
+    const resolvedModel = resolveModelName(anthropicPayload.model)
 
     const openAIPayload = translateToOpenAI(anthropicPayload)
 
     const selectedModel = state.models?.data.find(
-      (model) => model.id === anthropicPayload.model,
+      (model) => model.id === resolvedModel,
     )
 
     if (!selectedModel) {
