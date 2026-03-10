@@ -51,7 +51,10 @@ export function resolveModelName(requested: string): string {
 
   // 3. Dash-to-dot: replace the last dash before a numeric suffix with a dot
   const dotVariant = requested.replace(/^(.*\d)-(\d+)(-.+)?$/, "$1.$2$3")
-  if (dotVariant !== requested && availableIds.includes(dotVariant)) {
+  if (
+    dotVariant !== requested
+    && (availableIds.length === 0 || availableIds.includes(dotVariant))
+  ) {
     logModelResolution(requested, dotVariant)
     return dotVariant
   }
