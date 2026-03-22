@@ -1,15 +1,12 @@
-import consola from "consola"
 import { events } from "fetch-event-stream"
 
 import { copilotHeaders, copilotBaseUrl } from "~/lib/api-config"
-import { HTTPError } from "~/lib/error"
 import { state } from "~/lib/state"
+import { fetchWithCopilotToken } from "~/services/copilot/fetch-with-copilot-token"
 
 export const createChatCompletions = async (
   payload: ChatCompletionsPayload,
 ) => {
-  if (!state.copilotToken) throw new Error("Copilot token not found")
-
   const enableVision = payload.messages.some(
     (x) =>
       typeof x.content !== "string"
@@ -22,22 +19,18 @@ export const createChatCompletions = async (
     ["assistant", "tool"].includes(msg.role),
   )
 
-  // Build headers and add X-Initiator
-  const headers: Record<string, string> = {
-    ...copilotHeaders(state, enableVision),
-    "X-Initiator": isAgentCall ? "agent" : "user",
-  }
-
-  const response = await fetch(`${copilotBaseUrl(state)}/chat/completions`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-  })
-
-  if (!response.ok) {
-    consola.error("Failed to create chat completions", response)
-    throw new HTTPError("Failed to create chat completions", response)
-  }
+  const response = await fetchWithCopilotToken(
+    () =>
+      fetch(`${copilotBaseUrl(state)}/chat/completions`, {
+        method: "POST",
+        headers: {
+          ...copilotHeaders(state, enableVision),
+          "X-Initiator": isAgentCall ? "agent" : "user",
+        },
+        body: JSON.stringify(payload),
+      }),
+    "Failed to create chat completions",
+  )
 
   if (payload.stream) {
     return events(response)

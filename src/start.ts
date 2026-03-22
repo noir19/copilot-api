@@ -26,6 +26,7 @@ interface RunServerOptions {
   rateLimit?: number
   rateLimitWait: boolean
   githubToken?: string
+  githubTokenFile?: string
   claudeCode: boolean
   showToken: boolean
   proxyEnv: boolean
@@ -55,12 +56,10 @@ export async function runServer(options: RunServerOptions): Promise<void> {
   await cacheVSCodeVersion()
   loadModelAliases()
 
-  if (options.githubToken) {
-    state.githubToken = options.githubToken
-    consola.info("Using provided GitHub token")
-  } else {
-    await setupGitHubToken()
-  }
+  await setupGitHubToken({
+    githubToken: options.githubToken,
+    githubTokenFile: options.githubTokenFile,
+  })
 
   await setupCopilotToken()
   await cacheModels()
@@ -172,6 +171,11 @@ export const start = defineCommand({
       description:
         "Provide GitHub token directly (must be generated using the `auth` subcommand)",
     },
+    "github-token-file": {
+      type: "string",
+      description:
+        "Read GitHub token metadata from a file and watch for runtime updates",
+    },
     "claude-code": {
       alias: "c",
       type: "boolean",
@@ -204,6 +208,7 @@ export const start = defineCommand({
       rateLimit,
       rateLimitWait: args.wait,
       githubToken: args["github-token"],
+      githubTokenFile: args["github-token-file"],
       claudeCode: args["claude-code"],
       showToken: args["show-token"],
       proxyEnv: args["proxy-env"],

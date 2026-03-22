@@ -1,5 +1,7 @@
 # Copilot API Proxy
 
+[中文说明](./README.zh-CN.md)
+
 > [!WARNING]
 > This is a reverse-engineered proxy of GitHub Copilot API. It is not supported by GitHub, and may break unexpectedly. Use at your own risk.
 
@@ -38,6 +40,8 @@ A reverse-engineered proxy for the GitHub Copilot API that exposes it as an Open
 - **Manual Request Approval**: Manually approve or deny each API request for fine-grained control over usage (`--manual`).
 - **Token Visibility**: Option to display GitHub and Copilot tokens during authentication and refresh for debugging (`--show-token`).
 - **Flexible Authentication**: Authenticate interactively or provide a GitHub token directly, suitable for CI/CD environments.
+- **Automatic Token Recovery**: Persists GitHub `access_token` and `refresh_token`, refreshes GitHub tokens before expiry, refreshes Copilot IDE tokens automatically, and retries once on `401 token expired`.
+- **Runtime Token Reloading**: Watches `GH_TOKEN_FILE` / `--github-token-file` for updates so containers can pick up host-side `copilot-api auth` runs without restarting.
 - **Support for Different Account Types**: Works with individual, business, and enterprise GitHub Copilot plans.
 
 ## Demo
@@ -57,6 +61,35 @@ To install dependencies, run:
 bun install
 ```
 
+## Authentication Architecture
+
+The proxy now treats GitHub authentication as a managed token lifecycle instead of a one-time login:
+
+- `copilot-api auth` stores structured token metadata in `~/.local/share/copilot-api/github_token`
+- The stored file can include `access_token`, `refresh_token`, and expiry timestamps
+- `start` will prefer `--github-token-file` or `GH_TOKEN_FILE`, then fall back to the local token store, then interactive auth
+- GitHub access tokens are refreshed automatically when a refresh token is available
+- Copilot IDE tokens are refreshed in the background and retried once if the API returns `401 token expired`
+- If a watched token file changes at runtime, the process reloads it and refreshes the Copilot token
+
+```mermaid
+flowchart TD
+  A[Device Flow via copilot-api auth] --> B[github_token JSON store]
+  H[GH_TOKEN_FILE mount or --github-token-file] --> C[Token Manager]
+  B --> C
+  C --> D[Manage GitHub access token]
+  C --> E[Manage GitHub refresh token]
+  C --> F[Manage token expiry metadata]
+  C --> G[Maintain state.githubToken]
+  G --> I[GitHub Copilot token endpoint]
+  I --> J[Short-lived Copilot IDE token]
+  J --> K[OpenAI/Anthropic compatible routes]
+  C --> L[GitHub refresh token flow]
+  H -. file watch .-> C
+  K -. 401 token expired .-> C
+  C -. refresh and retry once .-> K
+```
+
 ## Using with Docker
 
 Build image
@@ -68,21 +101,21 @@ docker build -t copilot-api .
 Run the container
 
 ```sh
-# Create a directory on your host to persist the GitHub token and related data
+# Create a directory on your host to persist the GitHub token metadata and related data
 mkdir -p ./copilot-data
 
-# Run the container with a bind mount to persist the token
-# This ensures your authentication survives container restarts
+# Run the container with a bind mount to persist the managed token store.
+# This keeps refresh tokens and expiry metadata available across container restarts.
 
 docker run -p 4141:4141 -v $(pwd)/copilot-data:/root/.local/share/copilot-api copilot-api
 ```
 
 > **Note:**
-> The GitHub token and related data will be stored in `copilot-data` on your host. This is mapped to `/root/.local/share/copilot-api` inside the container, ensuring persistence across restarts.
+> The GitHub token metadata and related data will be stored in `copilot-data` on your host. This is mapped to `/root/.local/share/copilot-api` inside the container, ensuring persistence across restarts and allowing automatic GitHub token refresh.
 
 ### Docker with Environment Variables
 
-You can pass the GitHub token directly to the container using environment variables:
+You can still pass the GitHub token directly to the container using environment variables:
 
 ```sh
 # Build with GitHub token
@@ -95,6 +128,33 @@ docker run -p 4141:4141 -e GH_TOKEN=your_github_token_here copilot-api
 docker run -p 4141:4141 -e GH_TOKEN=your_token copilot-api start --verbose --port 4141
 ```
 
+> **Tradeoff:**
+> `GH_TOKEN` only injects a raw access token. It does not give the server a watched file or refresh metadata, so it is the least resilient option for long-running containers.
+
+### Docker with a Watched Token File
+
+For long-running containers, prefer mounting the token file produced by `copilot-api auth` and passing it through `GH_TOKEN_FILE`:
+
+```sh
+mkdir -p ~/.local/share/copilot-api
+
+# Run auth once on the host. This writes a structured token file with refresh metadata.
+npx copilot-api@latest auth
+
+docker run \
+  -p 4141:4141 \
+  -v ~/.local/share/copilot-api/github_token:/run/secrets/gh_token:ro \
+  -e GH_TOKEN_FILE=/run/secrets/gh_token \
+  copilot-api
+```
+
+This mode gives you:
+
+- automatic GitHub access-token refresh when a refresh token is available
+- runtime reload if the mounted file changes
+- no container restart required after re-running `copilot-api auth` on the host
+- automatic Copilot token refresh after a GitHub token update
+
 ### Docker Compose Example
 
 ```yaml
@@ -104,8 +164,10 @@ services:
     build: .
     ports:
       - "4141:4141"
+    volumes:
+      - /path/to/github_token:/run/secrets/gh_token:ro
     environment:
-      - GH_TOKEN=your_github_token_here
+      - GH_TOKEN_FILE=/run/secrets/gh_token
     restart: unless-stopped
 ```
 
@@ -140,8 +202,8 @@ npx copilot-api@latest auth
 
 Copilot API now uses a subcommand structure with these main commands:
 
-- `start`: Start the Copilot API server. This command will also handle authentication if needed.
-- `auth`: Run GitHub authentication flow without starting the server. This is typically used if you need to generate a token for use with the `--github-token` option, especially in non-interactive environments.
+- `start`: Start the Copilot API server. This command loads a watched token file, the persisted token store, or runs authentication if needed.
+- `auth`: Run GitHub authentication flow without starting the server. This writes the managed token file used for automatic refresh and for `--github-token-file` / `GH_TOKEN_FILE` workflows.
 - `check-usage`: Show your current GitHub Copilot usage and quota information directly in the terminal (no server required).
 - `debug`: Display diagnostic information including version, runtime details, file paths, and authentication status. Useful for troubleshooting and support.
 
@@ -160,6 +222,7 @@ The following command line options are available for the `start` command:
 | --rate-limit   | Rate limit in seconds between requests                                        | none       | -r    |
 | --wait         | Wait instead of error when rate limit is hit                                  | false      | -w    |
 | --github-token | Provide GitHub token directly (must be generated using the `auth` subcommand) | none       | -g    |
+| --github-token-file | Read GitHub token metadata from a file and watch for runtime updates     | none       | none  |
 | --claude-code  | Generate a command to launch Claude Code with Copilot API config              | false      | -c    |
 | --show-token   | Show GitHub and Copilot tokens on fetch and refresh                           | false      | none  |
 | --proxy-env    | Initialize proxy from environment variables                                   | false      | none  |
@@ -237,6 +300,9 @@ npx copilot-api@latest start --rate-limit 30 --wait
 
 # Provide GitHub token directly
 npx copilot-api@latest start --github-token ghp_YOUR_TOKEN_HERE
+
+# Prefer a watched token file for long-running servers
+npx copilot-api@latest start --github-token-file ~/.local/share/copilot-api/github_token
 
 # Run only the auth flow
 npx copilot-api@latest auth
