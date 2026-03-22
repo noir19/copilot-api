@@ -1,5 +1,7 @@
 # Copilot API Proxy
 
+[中文说明](./README.zh-CN.md)
+
 > [!WARNING]
 > This is a reverse-engineered proxy of GitHub Copilot API. It is not supported by GitHub, and may break unexpectedly. Use at your own risk.
 
@@ -73,16 +75,19 @@ The proxy now treats GitHub authentication as a managed token lifecycle instead 
 ```mermaid
 flowchart TD
   A[Device Flow via copilot-api auth] --> B[github_token JSON store]
-  B --> C[Token Manager]
-  H[GH_TOKEN_FILE mount or --github-token-file] --> C
-  C --> D[GitHub user access token]
-  D --> E[GitHub refresh token flow]
-  C --> F[GitHub Copilot token endpoint]
-  F --> G[Short-lived Copilot IDE token]
-  G --> I[OpenAI/Anthropic compatible routes]
+  H[GH_TOKEN_FILE mount or --github-token-file] --> C[Token Manager]
+  B --> C
+  C --> D[Manage GitHub access token]
+  C --> E[Manage GitHub refresh token]
+  C --> F[Manage token expiry metadata]
+  C --> G[Maintain state.githubToken]
+  G --> I[GitHub Copilot token endpoint]
+  I --> J[Short-lived Copilot IDE token]
+  J --> K[OpenAI/Anthropic compatible routes]
+  C --> L[GitHub refresh token flow]
   H -. file watch .-> C
-  I -. 401 token expired .-> C
-  C -. refresh and retry once .-> I
+  K -. 401 token expired .-> C
+  C -. refresh and retry once .-> K
 ```
 
 ## Using with Docker
