@@ -2,13 +2,16 @@
  * Shared timestamp formatting for consistent log output.
  */
 
-const pad = (n: number): string => n.toString().padStart(2, "0")
-
-function getTimestamp(): string {
-  const now = new Date()
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
-}
+const formatter = new Intl.DateTimeFormat("sv-SE", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+})
 
 export function honoPrintFn(message: string, ...rest: Array<string>): void {
-  console.log(`[${getTimestamp()}] ${message}`, ...rest)
+  console.log(`[${formatter.format(new Date())}] ${message}`, ...rest)
 }

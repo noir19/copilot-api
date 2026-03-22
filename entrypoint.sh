@@ -13,8 +13,10 @@ elif [ -n "$GH_TOKEN_FILE" ]; then
   # Read token metadata directly from the mounted file and keep watching it at runtime.
   # shellcheck disable=SC2086
   exec bun run dist/main.js start --github-token-file "$GH_TOKEN_FILE" $EXTRA_FLAGS "$@"
-else
-  # Default command
+elif [ -n "$GH_TOKEN" ]; then
   # shellcheck disable=SC2086
   exec bun run dist/main.js start -g "$GH_TOKEN" $EXTRA_FLAGS "$@"
+else
+  echo "Error: GH_TOKEN or GH_TOKEN_FILE must be set. Run with --auth to authenticate interactively." >&2
+  exit 1
 fi

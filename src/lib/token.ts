@@ -48,6 +48,28 @@ let githubTokenRefreshPromise: Promise<string> | undefined
 let copilotTokenRefreshPromise: Promise<string> | undefined
 let copilotTokenRefreshTimer: ReturnType<typeof setTimeout> | undefined
 
+/**
+ * Deduplicates concurrent calls to the same async operation.
+ * If a promise is already in flight, returns it instead of starting a new one.
+ */
+const dedup = async <T>(
+  getRef: () => Promise<T> | undefined,
+  setRef: (p: Promise<T> | undefined) => void,
+  fn: () => Promise<T>,
+): Promise<T> => {
+  const existing = getRef()
+  if (existing) return existing
+
+  const promise = fn()
+  setRef(promise)
+
+  try {
+    return await promise
+  } finally {
+    if (getRef() === promise) setRef(undefined)
+  }
+}
+
 const readFileIfExists = async (filePath: string) => {
   try {
     return await fs.readFile(filePath, "utf8")
@@ -188,35 +210,20 @@ const tokensDiffer = (
   || currentToken?.accessTokenExpiresAt !== nextToken?.accessTokenExpiresAt
   || currentToken?.refreshTokenExpiresAt !== nextToken?.refreshTokenExpiresAt
 
-const scheduleCopilotTokenRefresh = (refreshInSeconds: number) => {
+const scheduleCopilotTokenRefresh = (delayMs: number) => {
   if (copilotTokenRefreshTimer) {
     clearTimeout(copilotTokenRefreshTimer)
   }
 
-  const refreshDelay = Math.max(
-    refreshInSeconds * 1000 - COPILOT_TOKEN_REFRESH_BUFFER_MS,
-    30_000,
+  copilotTokenRefreshTimer = setTimeout(
+    () => {
+      void refreshCopilotToken(true).catch((error: unknown) => {
+        consola.error("Failed to refresh Copilot token:", error)
+        scheduleCopilotTokenRefresh(REFRESH_RETRY_DELAY_MS)
+      })
+    },
+    Math.max(delayMs, 30_000),
   )
-
-  copilotTokenRefreshTimer = setTimeout(() => {
-    void refreshCopilotToken(true).catch((error: unknown) => {
-      consola.error("Failed to refresh Copilot token:", error)
-      scheduleCopilotTokenRetry()
-    })
-  }, refreshDelay)
-}
-
-const scheduleCopilotTokenRetry = () => {
-  if (copilotTokenRefreshTimer) {
-    clearTimeout(copilotTokenRefreshTimer)
-  }
-
-  copilotTokenRefreshTimer = setTimeout(() => {
-    void refreshCopilotToken(true).catch((error: unknown) => {
-      consola.error("Failed to refresh Copilot token:", error)
-      scheduleCopilotTokenRetry()
-    })
-  }, REFRESH_RETRY_DELAY_MS)
 }
 
 const applyGitHubToken = async (
@@ -260,30 +267,23 @@ const refreshGitHubToken = async () => {
     throw new Error("GitHub refresh token not found")
   }
 
-  if (githubTokenRefreshPromise) {
-    return githubTokenRefreshPromise
-  }
+  return dedup(
+    () => githubTokenRefreshPromise,
+    (p) => {
+      githubTokenRefreshPromise = p
+    },
+    async () => {
+      const response = await refreshAccessToken(refreshToken)
+      const nextToken = normalizeGitHubToken(response)
 
-  const refreshPromise = (async () => {
-    const response = await refreshAccessToken(refreshToken)
-    const nextToken = normalizeGitHubToken(response)
+      if (!nextToken) {
+        throw new Error("Failed to normalize refreshed GitHub token")
+      }
 
-    if (!nextToken) {
-      throw new Error("Failed to normalize refreshed GitHub token")
-    }
-
-    await applyGitHubToken(nextToken, { logSource: "GitHub refresh flow" })
-    return nextToken.accessToken
-  })()
-  githubTokenRefreshPromise = refreshPromise
-
-  try {
-    return await refreshPromise
-  } finally {
-    if (githubTokenRefreshPromise === refreshPromise) {
-      githubTokenRefreshPromise = undefined
-    }
-  }
+      await applyGitHubToken(nextToken, { logSource: "GitHub refresh flow" })
+      return nextToken.accessToken
+    },
+  )
 }
 
 const reloadGitHubTokenFromFile = async (
@@ -406,50 +406,41 @@ export async function isExpiredTokenResponse(response: Response) {
   return body.includes("token expired")
 }
 
-export const refreshCopilotToken = async (_force: boolean = false) => {
-  if (copilotTokenRefreshPromise) {
-    return copilotTokenRefreshPromise
+const fetchAndApplyCopilotToken = async () => {
+  const { token, refresh_in } = await getCopilotToken()
+  state.copilotToken = token
+
+  consola.debug("GitHub Copilot token fetched successfully")
+  if (state.showToken) {
+    consola.info("Copilot token:", token)
   }
 
-  const refreshPromise = (async () => {
-    await ensureGitHubTokenFresh()
+  scheduleCopilotTokenRefresh(
+    refresh_in * 1000 - COPILOT_TOKEN_REFRESH_BUFFER_MS,
+  )
+  return token
+}
 
-    try {
-      const { token, refresh_in } = await getCopilotToken()
-      state.copilotToken = token
+export const refreshCopilotToken = async (_force: boolean = false) => {
+  return dedup(
+    () => copilotTokenRefreshPromise,
+    (p) => {
+      copilotTokenRefreshPromise = p
+    },
+    async () => {
+      await ensureGitHubTokenFresh()
 
-      consola.debug("GitHub Copilot token fetched successfully")
-      if (state.showToken) {
-        consola.info("Copilot token:", token)
-      }
-
-      scheduleCopilotTokenRefresh(refresh_in)
-      return token
-    } catch (error) {
-      if (error instanceof HTTPError && (await recoverGitHubToken())) {
-        const { token, refresh_in } = await getCopilotToken()
-        state.copilotToken = token
-
-        if (state.showToken) {
-          consola.info("Copilot token:", token)
+      try {
+        return await fetchAndApplyCopilotToken()
+      } catch (error) {
+        if (error instanceof HTTPError && (await recoverGitHubToken())) {
+          return await fetchAndApplyCopilotToken()
         }
 
-        scheduleCopilotTokenRefresh(refresh_in)
-        return token
+        throw error
       }
-
-      throw error
-    }
-  })()
-  copilotTokenRefreshPromise = refreshPromise
-
-  try {
-    return await refreshPromise
-  } finally {
-    if (copilotTokenRefreshPromise === refreshPromise) {
-      copilotTokenRefreshPromise = undefined
-    }
-  }
+    },
+  )
 }
 
 export const setupCopilotToken = async () => {

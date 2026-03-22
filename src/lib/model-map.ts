@@ -1,5 +1,6 @@
 import consola from "consola"
-import fs from "node:fs"
+import fs from "node:fs/promises"
+import path from "node:path"
 
 import { state } from "./state"
 
@@ -9,12 +10,12 @@ let aliases: ModelAliasMap = {}
 
 const CONFIG_FILENAME = "model-aliases.json"
 
-export function loadModelAliases(): void {
-  const configPath = `${process.cwd()}/${CONFIG_FILENAME}`
+export async function loadModelAliases(): Promise<void> {
+  const configPath = path.resolve(CONFIG_FILENAME)
 
   try {
-    const raw = fs.readFileSync(configPath)
-    aliases = JSON.parse(raw.toString()) as ModelAliasMap
+    const raw = await fs.readFile(configPath)
+    aliases = JSON.parse(raw) as ModelAliasMap
     consola.info(
       `Loaded ${Object.keys(aliases).length} model alias(es) from ${CONFIG_FILENAME}`,
     )

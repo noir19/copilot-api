@@ -42,19 +42,19 @@ export async function handleCountTokens(c: Context) {
         )
       }
       if (!mcpToolExist) {
-        if (anthropicPayload.model.startsWith("claude")) {
+        if (resolvedModel.startsWith("claude")) {
           // https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/overview#pricing
           tokenCount.input = tokenCount.input + 346
-        } else if (anthropicPayload.model.startsWith("grok")) {
+        } else if (resolvedModel.startsWith("grok")) {
           tokenCount.input = tokenCount.input + 480
         }
       }
     }
 
     let finalTokenCount = tokenCount.input + tokenCount.output
-    if (anthropicPayload.model.startsWith("claude")) {
+    if (resolvedModel.startsWith("claude")) {
       finalTokenCount = Math.round(finalTokenCount * 1.15)
-    } else if (anthropicPayload.model.startsWith("grok")) {
+    } else if (resolvedModel.startsWith("grok")) {
       finalTokenCount = Math.round(finalTokenCount * 1.03)
     }
 

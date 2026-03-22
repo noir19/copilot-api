@@ -54,7 +54,7 @@ export async function runServer(options: RunServerOptions): Promise<void> {
 
   await ensurePaths()
   await cacheVSCodeVersion()
-  loadModelAliases()
+  await loadModelAliases()
 
   await setupGitHubToken({
     githubToken: options.githubToken,
