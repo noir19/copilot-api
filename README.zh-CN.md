@@ -29,39 +29,77 @@
 
 ## 改造前后的总体对比
 
+先看两个关键映射，后面的图都围绕这两个事实展开：
+
+- `github_token` JSON 中的 `accessToken` 会写入 `state.githubToken`，然后用于 GitHub 请求头 `authorization: token ${state.githubToken}`
+- GitHub `/copilot_internal/v2/token` 返回的 `token` 会写入 `state.copilotToken`，然后用于 Copilot 请求头 `Authorization: Bearer ${state.copilotToken}`
+
 ### 改造前
 
 ```mermaid
 flowchart TD
-  A[用户执行 copilot-api auth] --> B[github_token 文件]
-  B --> C[通常只保存 access token]
-  C --> D[容器启动时 entrypoint 读取一次]
-  D --> E[进程内 state.githubToken]
-  E --> F[调用 GitHub Copilot token 接口]
-  F --> G[进程内 state.copilotToken]
-  G --> H[OpenAI/Anthropic 路由]
-  H -. token 过期 .-> I[返回 401 token expired]
-  B -. 宿主机更新文件 .-> J[运行中的进程无感知]
+  A[宿主机 github_token 文件]
+  A --> B[纯文本 access token]
+  B --> C[entrypoint.sh 启动时 cat 一次]
+  C --> D[命令行参数 -g GH_TOKEN]
+  D --> E[state.githubToken]
+  E --> F[GitHub 请求头 authorization: token state.githubToken]
+  F --> G[GET /copilot_internal/v2/token]
+  G --> H[返回 Copilot token]
+  H --> I[state.copilotToken]
+  I --> J[Copilot 请求头 Authorization: Bearer state.copilotToken]
+  J --> K[业务请求]
+  K -. 401 token expired .-> L[直接失败]
+  A -. 宿主机更新文件 .-> M[运行中的进程无感知]
 ```
 
 ### 改造后
 
-```mermaid
-flowchart TD
-  A[用户执行 copilot-api auth] --> B[github_token JSON 文件]
-  H[GH_TOKEN_FILE 或 --github-token-file] --> F[统一 Token Manager]
-  B --> F
-  F --> C[管理 access token]
-  F --> D[管理 refresh token]
-  F --> E[管理过期时间 metadata]
-  F --> G[维护 state.githubToken]
-  G --> I[GitHub Copilot token 接口]
-  I --> J[state.copilotToken]
-  J --> K[OpenAI/Anthropic 路由]
-  F --> L[GitHub refresh_token 刷新链路]
-  H -. 文件变化 watch .-> F
-  K -. 401 token expired .-> F
-  F -. 刷新 Copilot token 后重试一次 .-> K
+```text
+GitHub Device Flow / 宿主机 copilot-api auth
+                    |
+                    v
++--------------------------------------------------+
+| github_token JSON 文件                            |
+|                                                  |
+|  accessToken               -> GitHub access token |
+|  refreshToken              -> GitHub refresh token|
+|  accessTokenExpiresAt      -> access token 过期点 |
+|  refreshTokenExpiresAt     -> refresh token 过期点|
+|  updatedAt                 -> 最近更新时间        |
++--------------------------------------------------+
+                    |
+                    | 整体读取 / watch 文件变化
+                    v
++--------------------------------------------------+
+| src/lib/token.ts                                 |
+| Token Manager                                    |
+|                                                  |
+|  1. 读取整个 github_token JSON                   |
+|  2. 取 accessToken -> state.githubToken          |
+|  3. 取 expiresAt -> 判断 access token 是否快过期 |
+|  4. 必要时用 refreshToken 刷新 GitHub token      |
+|  5. 回写 github_token JSON                       |
+|  6. 用 state.githubToken 去换 Copilot token      |
++--------------------------------------------------+
+                    |
+                    v
+state.githubToken
+                    |
+                    v
+GitHub 请求头: authorization: token ${state.githubToken}
+                    |
+                    v
+GET /copilot_internal/v2/token
+                    |
+                    v
+response.token -> state.copilotToken
+                    |
+                    v
+Copilot 请求头: Authorization: Bearer ${state.copilotToken}
+                    |
+                    v
+业务请求
 ```
 
 ## 核心改动 1：GitHub token 持久化升级
@@ -98,6 +136,14 @@ GitHub token 的思路基本是：
 - 如果 access token 快过期且 refresh token 仍有效，则自动走 refresh flow
 - 如果 watched token file 在运行时变化，会自动 reload 到内存
 
+字段和运行态之间的关系是：
+
+- `github_token.accessToken` -> `state.githubToken`
+- `github_token.refreshToken` -> `currentGitHubToken.refreshToken`
+- `github_token.accessTokenExpiresAt` -> 判断是否需要刷新 GitHub access token
+- `github_token.refreshTokenExpiresAt` -> 判断 refresh token 是否还可用于刷新
+- `state.githubToken` -> `githubHeaders(state)` -> `authorization: token ${state.githubToken}`
+
 ### GitHub token 链路对比图
 
 #### 改造前
@@ -113,18 +159,49 @@ flowchart LR
 
 #### 改造后
 
-```mermaid
-flowchart LR
-  A[Device Flow] --> B[写入 github_token JSON]
-  B --> F[Token Manager in src/lib/token.ts]
-  J[GH_TOKEN_FILE 变化] -. watch reload .-> F
-  F --> C[持有 accessToken]
-  F --> D[持有 refreshToken]
-  F --> E[持有 expiresAt metadata]
-  F --> G[更新 state.githubToken]
-  G --> H[GitHub API]
-  F --> I[refreshAccessToken]
-  I --> B
+```text
++--------------------------------------------------+
+| github_token JSON                                |
+|                                                  |
+|  accessToken                                     |
+|  refreshToken                                    |
+|  accessTokenExpiresAt                            |
+|  refreshTokenExpiresAt                           |
++--------------------------------------------------+
+                    |
+                    v
++--------------------------------------------------+
+| src/lib/token.ts  Token Manager                  |
++--------------------------------------------------+
+| 读取 accessToken            -> state.githubToken |
+| 读取 accessTokenExpiresAt   -> 判断是否快过期    |
+| 读取 refreshToken           -> 刷新时使用        |
+| 读取 refreshTokenExpiresAt  -> 判断是否还能刷新  |
++--------------------------------------------------+
+                    |
+                    +--> accessToken 未过期
+                    |       |
+                    |       v
+                    |   直接使用 state.githubToken
+                    |
+                    +--> accessToken 快过期
+                            |
+                            +--> refreshToken 仍有效
+                                    |
+                                    v
+                              POST /login/oauth/access_token
+                              grant_type=refresh_token
+                                    |
+                                    v
+                              返回新的 access_token /
+                              refresh_token / expires_in
+                                    |
+                                    v
+                              normalizeGitHubToken
+                                    |
+                                    +--> 回写 github_token JSON
+                                    |
+                                    +--> 更新 state.githubToken
 ```
 
 ### 这部分带来的直接收益
@@ -168,6 +245,18 @@ Copilot token 的思路是：
   - 然后重新获取 Copilot token
 - 成功后自动重试一次原请求
 
+这里最关键的工程逻辑是：
+
+- 正常业务请求真正使用的是 `state.copilotToken`
+- `state.copilotToken` 来自 `getCopilotToken()` 的响应字段 `token`
+- `getCopilotToken()` 这一步使用的认证头不是 Copilot token，而是 GitHub token：
+  `authorization: token ${state.githubToken}`
+- 所以 `401 token expired` 之后，恢复顺序不是“直接刷新旧 Copilot token”，而是：
+  1. 先确认 `state.githubToken` 还可用，必要时用 `refreshToken` 刷新它
+  2. 再调用 GitHub `/copilot_internal/v2/token` 重新拿一个新的 Copilot token
+  3. 把新 token 写回 `state.copilotToken`
+  4. 用新的 `Authorization: Bearer ${state.copilotToken}` 重试一次原请求
+
 ### Copilot token 链路对比图
 
 #### 改造前
@@ -183,18 +272,55 @@ flowchart LR
 
 #### 改造后
 
-```mermaid
-flowchart LR
-  A[fetch-with-copilot-token] --> B[检查/确保 state.copilotToken]
-  B --> C[发送业务请求]
-  C -->|200| D[返回结果]
-  C -->|401 token expired| E[refreshCopilotToken]
-  E --> F[调用 Token Manager]
-  F --> G[必要时恢复 GitHub token]
-  G --> H[重新获取 Copilot token]
-  H --> I[重试一次原请求]
-  I --> J[返回结果或最终错误]
-  H --> K[根据最新 refresh_in 动态调度下次刷新]
+```text
+原 Copilot 请求
+  |
+  v
+Authorization: Bearer ${state.copilotToken}
+  |
+  v
+Copilot API
+  |
+  +--> 200
+  |      |
+  |      v
+  |    直接返回
+  |
+  +--> 401 token expired
+         |
+         v
+   fetch-with-copilot-token.ts
+         |
+         v
+   refreshCopilotToken()
+         |
+         v
+   src/lib/token.ts Token Manager
+         |
+         | 先处理 GitHub token，而不是直接复用旧 Copilot token
+         |
+         +--> 检查 github_token JSON 中的 accessTokenExpiresAt
+         |
+         +--> 如果 GitHub access token 快过期
+         |      且 refreshToken 仍有效
+         |      |
+         |      v
+         |    用 refreshToken 刷新 GitHub access token
+         |      |
+         |      v
+         |    回写 github_token JSON
+         |      |
+         |      v
+         |    更新 state.githubToken
+         |
+         v
+   用 state.githubToken 请求 GitHub /copilot_internal/v2/token
+         |
+         v
+   response.token -> state.copilotToken
+         |
+         v
+   用新的 Bearer token 重试一次原 Copilot 请求
 ```
 
 ### 这部分带来的直接收益
@@ -226,24 +352,54 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  A[宿主机 github_token 文件] --> B[/run/secrets/gh_token]
-  B --> C[entrypoint.sh 启动时 cat 一次]
-  C --> D[-g GH_TOKEN]
-  D --> E[应用进程]
-  A -. 后续文件变化 .-> F[进程无感知]
+  A[宿主机 github_token 文件]
+  B[容器内挂载文件]
+  C[entrypoint 读取一次]
+  D[启动参数 GH_TOKEN]
+  E[应用进程]
+  F[后续文件变化不会生效]
+
+  A --> B
+  B --> C
+  C --> D
+  D --> E
+  A -. 更新文件 .-> F
+  F -. 进程不重读 .-> E
 ```
 
 #### 改造后
 
-```mermaid
-flowchart TD
-  A[宿主机 github_token 文件] --> B[/run/secrets/gh_token]
-  B --> C[GH_TOKEN_FILE / --github-token-file]
-  C --> D[应用内 Token Manager]
-  B -. 文件变化 watch .-> D
-  D --> E[更新内存中的 GitHub token 状态]
-  D --> F[触发 Copilot token 刷新]
-  F --> G[业务请求恢复]
+```text
+宿主机 github_token JSON 文件
+  |
+  v
+容器内挂载文件
+  |
+  v
+GH_TOKEN_FILE / --github-token-file
+  |
+  v
+src/lib/token.ts Token Manager
+  |
+  +--> 整体读取 github_token JSON
+  |
+  +--> 提取 accessToken / refreshToken / expiresAt
+  |
+  +--> 更新 state.githubToken
+  |
+  +--> 如有需要重新获取 state.copilotToken
+  |
+  v
+业务请求恢复
+
+另外：
+容器内挂载文件发生变化
+  |
+  v
+watcher 感知变化
+  |
+  v
+Token Manager 重新读取整个 github_token JSON
 ```
 
 ## 推荐使用方式

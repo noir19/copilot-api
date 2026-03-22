@@ -72,22 +72,56 @@ The proxy now treats GitHub authentication as a managed token lifecycle instead 
 - Copilot IDE tokens are refreshed in the background and retried once if the API returns `401 token expired`
 - If a watched token file changes at runtime, the process reloads it and refreshes the Copilot token
 
-```mermaid
-flowchart TD
-  A[Device Flow via copilot-api auth] --> B[github_token JSON store]
-  H[GH_TOKEN_FILE mount or --github-token-file] --> C[Token Manager]
-  B --> C
-  C --> D[Manage GitHub access token]
-  C --> E[Manage GitHub refresh token]
-  C --> F[Manage token expiry metadata]
-  C --> G[Maintain state.githubToken]
-  G --> I[GitHub Copilot token endpoint]
-  I --> J[Short-lived Copilot IDE token]
-  J --> K[OpenAI/Anthropic compatible routes]
-  C --> L[GitHub refresh token flow]
-  H -. file watch .-> C
-  K -. 401 token expired .-> C
-  C -. refresh and retry once .-> K
+Two key mappings drive the whole flow:
+
+- `github_token.accessToken -> state.githubToken -> authorization: token ${state.githubToken}`
+- `GET /copilot_internal/v2/token -> response.token -> state.copilotToken -> Authorization: Bearer ${state.copilotToken}`
+
+```text
+GitHub Device Flow / host-side copilot-api auth
+                    |
+                    v
++--------------------------------------------------+
+| github_token JSON file                           |
+|                                                  |
+|  accessToken               -> GitHub access token|
+|  refreshToken              -> GitHub refresh token
+|  accessTokenExpiresAt      -> access token expiry|
+|  refreshTokenExpiresAt     -> refresh token expiry
+|  updatedAt                 -> last update time   |
++--------------------------------------------------+
+                    |
+                    | load as one object / watch for file changes
+                    v
++--------------------------------------------------+
+| src/lib/token.ts                                 |
+| Token Manager                                    |
+|                                                  |
+|  1. Read the whole github_token JSON             |
+|  2. accessToken -> state.githubToken             |
+|  3. expiry fields -> decide whether refresh is needed
+|  4. refreshToken -> refresh GitHub access token  |
+|  5. write updated github_token JSON              |
+|  6. use state.githubToken to fetch Copilot token |
++--------------------------------------------------+
+                    |
+                    v
+state.githubToken
+                    |
+                    v
+GitHub header: authorization: token ${state.githubToken}
+                    |
+                    v
+GET /copilot_internal/v2/token
+                    |
+                    v
+response.token -> state.copilotToken
+                    |
+                    v
+Copilot header: Authorization: Bearer ${state.copilotToken}
+                    |
+                    v
+API request
 ```
 
 ## Using with Docker
