@@ -11,7 +11,7 @@ import type { DeviceCodeResponse } from "./get-device-code"
 
 export async function pollAccessToken(
   deviceCode: DeviceCodeResponse,
-): Promise<string> {
+): Promise<AccessTokenResponse> {
   // Interval is in seconds, we need to multiply by 1000 to get milliseconds
   // I'm also adding another second, just to be safe
   const sleepDuration = (deviceCode.interval + 1) * 1000
@@ -41,18 +41,21 @@ export async function pollAccessToken(
     const json = await response.json()
     consola.debug("Polling access token response:", json)
 
-    const { access_token } = json as AccessTokenResponse
+    const tokenResponse = json as AccessTokenResponse
 
-    if (access_token) {
-      return access_token
+    if (tokenResponse.access_token) {
+      return tokenResponse
     } else {
       await sleep(sleepDuration)
     }
   }
 }
 
-interface AccessTokenResponse {
+export interface AccessTokenResponse {
   access_token: string
   token_type: string
   scope: string
+  expires_in?: number
+  refresh_token?: string
+  refresh_token_expires_in?: number
 }
