@@ -15,7 +15,7 @@ export async function loadModelAliases(): Promise<void> {
 
   try {
     const raw = await fs.readFile(configPath)
-    aliases = JSON.parse(raw) as ModelAliasMap
+    aliases = JSON.parse(raw.toString("utf8")) as ModelAliasMap
     consola.info(
       `Loaded ${Object.keys(aliases).length} model alias(es) from ${CONFIG_FILENAME}`,
     )

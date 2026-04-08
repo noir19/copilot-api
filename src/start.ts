@@ -6,6 +6,7 @@ import consola from "consola"
 import { serve, type ServerHandler } from "srvx"
 import invariant from "tiny-invariant"
 
+import { initializeDashboardRuntime } from "./db/runtime"
 import { loadModelAliases } from "./lib/model-map"
 import { ensurePaths } from "./lib/paths"
 import { initProxyFromEnv } from "./lib/proxy"
@@ -53,6 +54,7 @@ export async function runServer(options: RunServerOptions): Promise<void> {
   state.showToken = options.showToken
 
   await ensurePaths()
+  await initializeDashboardRuntime()
   await cacheVSCodeVersion()
   await loadModelAliases()
 

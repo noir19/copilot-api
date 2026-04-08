@@ -18,6 +18,7 @@ interface DebugInfo {
   paths: {
     APP_DIR: string
     GITHUB_TOKEN_PATH: string
+    DATABASE_PATH: string
   }
   tokenExists: boolean
 }
@@ -75,6 +76,7 @@ async function getDebugInfo(): Promise<DebugInfo> {
     paths: {
       APP_DIR: PATHS.APP_DIR,
       GITHUB_TOKEN_PATH: PATHS.GITHUB_TOKEN_PATH,
+      DATABASE_PATH: PATHS.DATABASE_PATH,
     },
     tokenExists,
   }
@@ -89,6 +91,7 @@ Runtime: ${info.runtime.name} ${info.runtime.version} (${info.runtime.platform} 
 Paths:
 - APP_DIR: ${info.paths.APP_DIR}
 - GITHUB_TOKEN_PATH: ${info.paths.GITHUB_TOKEN_PATH}
+- DATABASE_PATH: ${info.paths.DATABASE_PATH}
 
 Token exists: ${info.tokenExists ? "Yes" : "No"}`)
 }
