@@ -145,7 +145,7 @@ docker run -p 4141:4141 -v $(pwd)/copilot-data:/root/.local/share/copilot-api co
 ```
 
 > **Note:**
-> The GitHub token metadata and related data will be stored in `copilot-data` on your host. This is mapped to `/root/.local/share/copilot-api` inside the container, ensuring persistence across restarts and allowing automatic GitHub token refresh.
+> The GitHub token metadata, SQLite dashboard database, and related runtime data will be stored in `copilot-data` on your host. This is mapped to `/root/.local/share/copilot-api` inside the container, ensuring persistence across restarts and preserving both token refresh state and dashboard history.
 
 ### Docker with Environment Variables
 
@@ -357,26 +357,44 @@ npx copilot-api@latest debug --json
 npx copilot-api@latest start --proxy-env
 ```
 
-## Using the Usage Viewer
+## Using the Dashboard
 
-After starting the server, a URL to the Copilot Usage Dashboard will be displayed in your console. This dashboard is a web interface for monitoring your API usage.
+After starting the server, open the built-in dashboard at:
 
-1.  Start the server. For example, using npx:
-    ```sh
-    npx copilot-api@latest start
-    ```
-2.  The server will output a URL to the usage viewer. Copy and paste this URL into your browser. It will look something like this:
-    `https://ericc-ch.github.io/copilot-api?endpoint=http://localhost:4141/usage`
-    - If you use the `start.bat` script on Windows, this page will open automatically.
+```text
+http://localhost:4141/dashboard
+```
 
-The dashboard provides a user-friendly interface to view your Copilot usage data:
+The dashboard is now served directly by the proxy and reads real data from:
 
-- **API Endpoint URL**: The dashboard is pre-configured to fetch data from your local server endpoint via the URL query parameter. You can change this URL to point to any other compatible API endpoint.
-- **Fetch Data**: Click the "Fetch" button to load or refresh the usage data. The dashboard will automatically fetch data on load.
-- **Usage Quotas**: View a summary of your usage quotas for different services like Chat and Completions, displayed with progress bars for a quick overview.
-- **Detailed Information**: See the full JSON response from the API for a detailed breakdown of all available usage statistics.
-- **URL-based Configuration**: You can also specify the API endpoint directly in the URL using a query parameter. This is useful for bookmarks or sharing links. For example:
-  `https://ericc-ch.github.io/copilot-api?endpoint=http://your-api-server/usage`
+- SQLite request logs for request counts, model distribution, recent requests, and token totals
+- the live `GET /api/dashboard/usage` endpoint for Copilot quota data
+- the SQLite-backed model mapping store for display-name configuration
+
+Current dashboard tabs:
+
+- **Overview**: real request totals, success/error rates, latency, token totals, Copilot quota cards, model distribution, and recent requests
+- **Model Mappings**: create, edit, delete, and enable or disable display-name mappings that are persisted in SQLite and reloaded into the in-memory cache
+- **Settings**: placeholder shell for future configuration pages
+
+The dashboard data is persisted in the same application data directory used for token state:
+
+- default SQLite path: `~/.local/share/copilot-api/copilot-api.db`
+- override path with `COPILOT_API_DB_PATH`
+
+For frontend development:
+
+```sh
+bun run dev:dashboard
+```
+
+For production assets:
+
+```sh
+bun run build
+```
+
+This builds the server bundle and the dashboard assets into `dist/dashboard`, which are then served by the `/dashboard` routes.
 
 ## Using with Claude Code
 
