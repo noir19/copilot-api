@@ -1,14 +1,12 @@
-import { describe, test, expect } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import { z } from "zod"
-
+import type { AnthropicStreamState } from "~/routes/messages/anthropic-types"
+import { translateToAnthropic } from "~/routes/messages/non-stream-translation"
+import { translateChunkToAnthropicEvents } from "~/routes/messages/stream-translation"
 import type {
   ChatCompletionChunk,
   ChatCompletionResponse,
 } from "~/services/copilot/create-chat-completions"
-
-import { type AnthropicStreamState } from "~/routes/messages/anthropic-types"
-import { translateToAnthropic } from "~/routes/messages/non-stream-translation"
-import { translateChunkToAnthropicEvents } from "~/routes/messages/stream-translation"
 
 const anthropicUsageSchema = z.object({
   input_tokens: z.number().int(),

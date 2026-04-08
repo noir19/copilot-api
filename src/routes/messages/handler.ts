@@ -1,6 +1,5 @@
-import type { Context } from "hono"
-
 import consola from "consola"
+import type { Context } from "hono"
 import { streamSSE } from "hono/streaming"
 
 import { awaitApproval } from "~/lib/approval"
@@ -8,14 +7,14 @@ import { checkRateLimit } from "~/lib/rate-limit"
 import { enqueueRequestLog } from "~/lib/request-log"
 import { state } from "~/lib/state"
 import {
-  createChatCompletions,
   type ChatCompletionChunk,
   type ChatCompletionResponse,
+  createChatCompletions,
 } from "~/services/copilot/create-chat-completions"
 
-import {
-  type AnthropicMessagesPayload,
-  type AnthropicStreamState,
+import type {
+  AnthropicMessagesPayload,
+  AnthropicStreamState,
 } from "./anthropic-types"
 import {
   translateToAnthropic,

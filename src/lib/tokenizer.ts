@@ -150,8 +150,8 @@ export const getTokenizerFromModel = (model: Model): string => {
  * Get model-specific constants for token calculation
  */
 const getModelConstants = (model: Model) => {
-  return model.id === "gpt-3.5-turbo" || model.id === "gpt-4" ?
-      {
+  return model.id === "gpt-3.5-turbo" || model.id === "gpt-4"
+    ? {
         funcInit: 10,
         propInit: 3,
         propKey: 3,
@@ -224,9 +224,9 @@ const calculateParameterTokens = (
     if (!excludedKeys.has(propertyName)) {
       const propertyValue = param[propertyName]
       const propertyText =
-        typeof propertyValue === "string" ? propertyValue : (
-          JSON.stringify(propertyValue)
-        )
+        typeof propertyValue === "string"
+          ? propertyValue
+          : JSON.stringify(propertyValue)
       tokens += encoder.encode(`${propertyName}:${propertyText}`).length
     }
   }
@@ -286,11 +286,11 @@ const calculateToolTokens = (
   if (fDesc.endsWith(".")) {
     fDesc = fDesc.slice(0, -1)
   }
-  const line = fName + ":" + fDesc
+  const line = `${fName}:${fDesc}`
   tokens += encoder.encode(line).length
   if (
-    typeof func.parameters === "object" // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    && func.parameters !== null
+    typeof func.parameters === "object" && // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    func.parameters !== null
   ) {
     tokens += calculateParametersTokens(func.parameters, encoder, constants)
   }

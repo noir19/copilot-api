@@ -1,15 +1,15 @@
-import consola from "consola"
-import { watch, type FSWatcher } from "node:fs"
+import { type FSWatcher, watch } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
+import consola from "consola"
 
 import { PATHS } from "~/lib/paths"
 import { getCopilotToken } from "~/services/github/get-copilot-token"
 import { getDeviceCode } from "~/services/github/get-device-code"
 import { getGitHubUser } from "~/services/github/get-user"
 import {
-  pollAccessToken,
   type AccessTokenResponse,
+  pollAccessToken,
 } from "~/services/github/poll-access-token"
 import { refreshAccessToken } from "~/services/github/refresh-access-token"
 
@@ -83,9 +83,9 @@ const readFileIfExists = async (filePath: string) => {
 }
 
 const toIsoDate = (secondsFromNow?: number) =>
-  secondsFromNow ?
-    new Date(Date.now() + secondsFromNow * 1000).toISOString()
-  : undefined
+  secondsFromNow
+    ? new Date(Date.now() + secondsFromNow * 1000).toISOString()
+    : undefined
 
 const normalizeGitHubToken = (
   token: AccessTokenResponse | StoredGitHubToken | string,
@@ -155,15 +155,15 @@ const parseGitHubTokenContent = (content: string) => {
         version: 1,
         accessToken: parsed.access_token,
         refreshToken:
-          typeof parsed.refresh_token === "string" ?
-            parsed.refresh_token
-          : undefined,
+          typeof parsed.refresh_token === "string"
+            ? parsed.refresh_token
+            : undefined,
         accessTokenExpiresAt:
           typeof parsed.expires_at === "string" ? parsed.expires_at : undefined,
         refreshTokenExpiresAt:
-          typeof parsed.refresh_token_expires_at === "string" ?
-            parsed.refresh_token_expires_at
-          : undefined,
+          typeof parsed.refresh_token_expires_at === "string"
+            ? parsed.refresh_token_expires_at
+            : undefined,
         updatedAt: new Date().toISOString(),
       })
     }
@@ -194,8 +194,8 @@ const isExpiredOrMissingSoon = (expiresAt?: string, bufferMs: number = 0) => {
 
 const canRefreshGitHubToken = (token: StoredGitHubToken | undefined) =>
   Boolean(
-    token?.refreshToken
-      && !isExpiredOrMissingSoon(
+    token?.refreshToken &&
+      !isExpiredOrMissingSoon(
         token.refreshTokenExpiresAt,
         GITHUB_TOKEN_REFRESH_BUFFER_MS,
       ),
@@ -205,10 +205,10 @@ const tokensDiffer = (
   currentToken: StoredGitHubToken | undefined,
   nextToken: StoredGitHubToken | undefined,
 ) =>
-  currentToken?.accessToken !== nextToken?.accessToken
-  || currentToken?.refreshToken !== nextToken?.refreshToken
-  || currentToken?.accessTokenExpiresAt !== nextToken?.accessTokenExpiresAt
-  || currentToken?.refreshTokenExpiresAt !== nextToken?.refreshTokenExpiresAt
+  currentToken?.accessToken !== nextToken?.accessToken ||
+  currentToken?.refreshToken !== nextToken?.refreshToken ||
+  currentToken?.accessTokenExpiresAt !== nextToken?.accessTokenExpiresAt ||
+  currentToken?.refreshTokenExpiresAt !== nextToken?.refreshTokenExpiresAt
 
 const scheduleCopilotTokenRefresh = (delayMs: number) => {
   if (copilotTokenRefreshTimer) {
@@ -316,12 +316,12 @@ const ensureGitHubTokenFresh = async () => {
   }
 
   if (
-    currentGitHubToken
-    && isExpiredOrMissingSoon(
+    currentGitHubToken &&
+    isExpiredOrMissingSoon(
       currentGitHubToken.accessTokenExpiresAt,
       GITHUB_TOKEN_REFRESH_BUFFER_MS,
-    )
-    && canRefreshGitHubToken(currentGitHubToken)
+    ) &&
+    canRefreshGitHubToken(currentGitHubToken)
   ) {
     await refreshGitHubToken()
   }

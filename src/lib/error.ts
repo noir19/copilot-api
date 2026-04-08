@@ -1,7 +1,6 @@
+import consola from "consola"
 import type { Context } from "hono"
 import type { ContentfulStatusCode } from "hono/utils/http-status"
-
-import consola from "consola"
 
 export class HTTPError extends Error {
   response: Response

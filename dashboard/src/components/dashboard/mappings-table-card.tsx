@@ -75,13 +75,14 @@ export function MappingsTableCard({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mappings.data.length === 0 ?
+              {mappings.data.length === 0 ? (
                 <TableRow>
                   <TableCell className="py-6 text-slate-500" colSpan={5}>
                     No model mappings yet.
                   </TableCell>
                 </TableRow>
-              : mappings.data.map((mapping) => (
+              ) : (
+                mappings.data.map((mapping) => (
                   <MappingRow
                     editingDraft={editingDraft}
                     editingId={editingId}
@@ -95,7 +96,7 @@ export function MappingsTableCard({
                     setEditingId={setEditingId}
                   />
                 ))
-              }
+              )}
             </TableBody>
           </Table>
         </TableWrapper>

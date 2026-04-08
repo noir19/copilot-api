@@ -1,27 +1,27 @@
 import { resolveModelName } from "~/lib/model-map"
-import {
-  type ChatCompletionResponse,
-  type ChatCompletionsPayload,
-  type ContentPart,
-  type Message,
-  type TextPart,
-  type Tool,
-  type ToolCall,
+import type {
+  ChatCompletionResponse,
+  ChatCompletionsPayload,
+  ContentPart,
+  Message,
+  TextPart,
+  Tool,
+  ToolCall,
 } from "~/services/copilot/create-chat-completions"
 
-import {
-  type AnthropicAssistantContentBlock,
-  type AnthropicAssistantMessage,
-  type AnthropicMessage,
-  type AnthropicMessagesPayload,
-  type AnthropicResponse,
-  type AnthropicTextBlock,
-  type AnthropicThinkingBlock,
-  type AnthropicTool,
-  type AnthropicToolResultBlock,
-  type AnthropicToolUseBlock,
-  type AnthropicUserContentBlock,
-  type AnthropicUserMessage,
+import type {
+  AnthropicAssistantContentBlock,
+  AnthropicAssistantMessage,
+  AnthropicMessage,
+  AnthropicMessagesPayload,
+  AnthropicResponse,
+  AnthropicTextBlock,
+  AnthropicThinkingBlock,
+  AnthropicTool,
+  AnthropicToolResultBlock,
+  AnthropicToolUseBlock,
+  AnthropicUserContentBlock,
+  AnthropicUserMessage,
 } from "./anthropic-types"
 import { mapOpenAIStopReasonToAnthropic } from "./utils"
 
@@ -54,9 +54,9 @@ function translateAnthropicMessagesToOpenAI(
   const systemMessages = handleSystemPrompt(system)
 
   const otherMessages = anthropicMessages.flatMap((message) =>
-    message.role === "user" ?
-      handleUserMessage(message)
-    : handleAssistantMessage(message),
+    message.role === "user"
+      ? handleUserMessage(message)
+      : handleAssistantMessage(message),
   )
 
   return [...systemMessages, ...otherMessages]
@@ -144,8 +144,8 @@ function handleAssistantMessage(
     ...thinkingBlocks.map((b) => b.thinking),
   ].join("\n\n")
 
-  return toolUseBlocks.length > 0 ?
-      [
+  return toolUseBlocks.length > 0
+    ? [
         {
           role: "assistant",
           content: allTextContent || null,
@@ -305,11 +305,11 @@ export function translateToAnthropic(
     stop_sequence: null,
     usage: {
       input_tokens:
-        (response.usage?.prompt_tokens ?? 0)
-        - (response.usage?.prompt_tokens_details?.cached_tokens ?? 0),
+        (response.usage?.prompt_tokens ?? 0) -
+        (response.usage?.prompt_tokens_details?.cached_tokens ?? 0),
       output_tokens: response.usage?.completion_tokens ?? 0,
-      ...(response.usage?.prompt_tokens_details?.cached_tokens
-        !== undefined && {
+      ...(response.usage?.prompt_tokens_details?.cached_tokens !==
+        undefined && {
         cache_read_input_tokens:
           response.usage.prompt_tokens_details.cached_tokens,
       }),

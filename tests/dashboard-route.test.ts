@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Hono } from "hono"
-
-import type { CopilotUsageResponse } from "~/services/github/get-copilot-usage"
-
 import { createDashboardRoute } from "~/routes/dashboard/route"
+import type { CopilotUsageResponse } from "~/services/github/get-copilot-usage"
 
 interface DashboardResponse<T> {
   data: T

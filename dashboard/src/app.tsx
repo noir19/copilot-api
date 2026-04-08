@@ -1,5 +1,5 @@
-import { Activity, Database, RefreshCcw, Settings2, Bot } from "lucide-react"
-import { useEffect, useState } from "react"
+import { Activity, Bot, Database, RefreshCcw, Settings2 } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
 
 import { MappingsPanel } from "./components/dashboard/mappings-panel"
 import { OverviewPanel } from "./components/dashboard/overview-panel"
@@ -8,9 +8,9 @@ import { Badge } from "./components/ui/badge"
 import { Button } from "./components/ui/button"
 import { Card, CardContent } from "./components/ui/card"
 import {
+  type DashboardData,
   loadDashboardData,
   loadMappings,
-  type DashboardData,
   type MappingsResponse,
 } from "./lib/dashboard-api"
 import { formatNumber } from "./lib/format"
@@ -68,9 +68,9 @@ function DashboardHeader({
           Refresh
         </Button>
         <Badge className="bg-white text-slate-600">
-          {dashboardData ?
-            `${formatNumber(dashboardData.overview.totalRequests)} requests tracked`
-          : "loading"}
+          {dashboardData
+            ? `${formatNumber(dashboardData.overview.totalRequests)} requests tracked`
+            : "loading"}
         </Badge>
       </div>
     </header>
@@ -145,15 +145,11 @@ function DashboardContent({
 
   return (
     <>
-      {activeTab === "overview" ?
-        <OverviewPanel data={dashboardData} />
-      : null}
-      {activeTab === "mappings" ?
+      {activeTab === "overview" ? <OverviewPanel data={dashboardData} /> : null}
+      {activeTab === "mappings" ? (
         <MappingsPanel mappings={mappingsResponse} onChanged={onRefresh} />
-      : null}
-      {activeTab === "settings" ?
-        <SettingsPanel />
-      : null}
+      ) : null}
+      {activeTab === "settings" ? <SettingsPanel /> : null}
     </>
   )
 }
@@ -167,7 +163,7 @@ export function App() {
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setIsRefreshing(true)
     setError(null)
 
@@ -180,19 +176,19 @@ export function App() {
       setMappingsResponse(mappings)
     } catch (refreshError) {
       setError(
-        refreshError instanceof Error ?
-          refreshError.message
-        : "Failed to load dashboard data",
+        refreshError instanceof Error
+          ? refreshError.message
+          : "Failed to load dashboard data",
       )
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     void refresh()
-  }, [])
+  }, [refresh])
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.14),_transparent_30%),linear-gradient(180deg,_#fffdf8_0%,_#f8fafc_42%,_#eef2ff_100%)] text-slate-900">

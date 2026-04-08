@@ -28,8 +28,9 @@
     "dev": "bun run --watch ./src/main.ts",
     "dev:dashboard": "vite --config dashboard/vite.config.ts",
     "knip": "knip-bun",
-    "lint": "eslint --cache",
-    "lint:all": "eslint --cache .",
+    "format": "biome format --write .",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
     "prepack": "bun run build",
     "prepare": "simple-git-hooks",
     "release": "bumpp && bun publish --access public",
@@ -37,10 +38,7 @@
     "typecheck": "tsc && tsc -p dashboard/tsconfig.json"
   },
   "simple-git-hooks": {
-    "pre-commit": "bunx lint-staged"
-  },
-  "lint-staged": {
-    "*": "bun run lint --fix"
+    "pre-commit": "bun run lint:fix"
   },
   "dependencies": {
     "citty": "^0.1.6",
@@ -63,7 +61,7 @@
     "zod": "^4.1.11"
   },
   "devDependencies": {
-    "@echristian/eslint-config": "^0.0.54",
+    "@biomejs/biome": "^2.4.10",
     "@tailwindcss/vite": "^4.2.2",
     "@types/bun": "^1.2.23",
     "@types/proxy-from-env": "^1.0.4",
@@ -71,10 +69,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "bumpp": "^10.2.3",
-    "eslint": "^9.37.0",
     "knip": "^5.64.1",
-    "lint-staged": "^16.2.3",
-    "prettier-plugin-packagejson": "^2.5.19",
     "simple-git-hooks": "^2.13.1",
     "tailwindcss": "^4.2.2",
     "tsdown": "^0.15.6",

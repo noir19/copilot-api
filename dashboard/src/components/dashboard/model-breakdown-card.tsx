@@ -24,11 +24,12 @@ export function ModelBreakdownCard({
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {requestModels.length === 0 ?
+          {requestModels.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
               No model requests yet.
             </div>
-          : requestModels.slice(0, 8).map((item) => (
+          ) : (
+            requestModels.slice(0, 8).map((item) => (
               <div
                 className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
                 key={`${item.modelDisplay}-${item.modelRaw}`}
@@ -52,7 +53,7 @@ export function ModelBreakdownCard({
                 </div>
               </div>
             ))
-          }
+          )}
         </div>
       </CardContent>
     </Card>

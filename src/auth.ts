@@ -3,7 +3,7 @@
 import { defineCommand } from "citty"
 import consola from "consola"
 
-import { PATHS, ensurePaths } from "./lib/paths"
+import { ensurePaths, PATHS } from "./lib/paths"
 import { state } from "./lib/state"
 import { setupGitHubToken } from "./lib/token"
 

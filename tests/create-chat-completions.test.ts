@@ -1,8 +1,6 @@
-import { test, expect, mock } from "bun:test"
-
-import type { ChatCompletionsPayload } from "../src/services/copilot/create-chat-completions"
-
+import { expect, mock, test } from "bun:test"
 import { state } from "../src/lib/state"
+import type { ChatCompletionsPayload } from "../src/services/copilot/create-chat-completions"
 import { createChatCompletions } from "../src/services/copilot/create-chat-completions"
 
 // Mock state

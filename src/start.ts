@@ -3,7 +3,7 @@
 import { defineCommand } from "citty"
 import clipboard from "clipboardy"
 import consola from "consola"
-import { serve, type ServerHandler } from "srvx"
+import { type ServerHandler, serve } from "srvx"
 import invariant from "tiny-invariant"
 
 import { initializeDashboardRuntime } from "./db/runtime"

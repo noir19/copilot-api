@@ -1,7 +1,6 @@
-import type { Context } from "hono"
-
 import consola from "consola"
-import { streamSSE, type SSEMessage } from "hono/streaming"
+import type { Context } from "hono"
+import { type SSEMessage, streamSSE } from "hono/streaming"
 
 import { awaitApproval } from "~/lib/approval"
 import { checkRateLimit } from "~/lib/rate-limit"
@@ -10,9 +9,9 @@ import { state } from "~/lib/state"
 import { getTokenCount } from "~/lib/tokenizer"
 import { isNullish } from "~/lib/utils"
 import {
-  createChatCompletions,
   type ChatCompletionResponse,
   type ChatCompletionsPayload,
+  createChatCompletions,
 } from "~/services/copilot/create-chat-completions"
 
 export async function handleCompletion(c: Context) {

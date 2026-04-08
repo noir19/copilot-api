@@ -47,21 +47,22 @@ export function RecentRequestsCard({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {recentRequests.length === 0 ?
+              {recentRequests.length === 0 ? (
                 <TableRow>
                   <TableCell className="py-6 text-slate-500" colSpan={6}>
                     No recent requests yet.
                   </TableCell>
                 </TableRow>
-              : recentRequests.map((request) => (
+              ) : (
+                recentRequests.map((request) => (
                   <TableRow key={request.id}>
                     <TableCell>{formatTimestamp(request.timestamp)}</TableCell>
                     <TableCell>
                       <div className="space-y-1">
                         <div className="font-medium text-slate-900">
-                          {request.modelDisplay
-                            ?? request.modelRaw
-                            ?? "Unknown"}
+                          {request.modelDisplay ??
+                            request.modelRaw ??
+                            "Unknown"}
                         </div>
                         <div className="text-xs text-slate-500">
                           {request.modelRaw ?? "unknown raw"}
@@ -77,25 +78,25 @@ export function RecentRequestsCard({
                       <div className="space-y-1">
                         <Badge
                           className={cn(
-                            request.status === "success" ?
-                              "bg-emerald-50 text-emerald-700"
-                            : "bg-rose-50 text-rose-700",
+                            request.status === "success"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-rose-50 text-rose-700",
                           )}
                         >
                           {request.status} {request.statusCode}
                         </Badge>
-                        {request.errorMessage ?
+                        {request.errorMessage ? (
                           <div className="max-w-[220px] text-xs text-rose-600">
                             {request.errorMessage}
                           </div>
-                        : null}
+                        ) : null}
                       </div>
                     </TableCell>
                     <TableCell>{request.latencyMs ?? 0} ms</TableCell>
                     <TableCell>{request.totalTokens ?? 0}</TableCell>
                   </TableRow>
                 ))
-              }
+              )}
             </TableBody>
           </Table>
         </TableWrapper>

@@ -85,9 +85,9 @@ export function CreateMappingCard({
         </label>
         <Button
           disabled={
-            isSaving
-            || draft.sourceModel.trim().length === 0
-            || draft.displayName.trim().length === 0
+            isSaving ||
+            draft.sourceModel.trim().length === 0 ||
+            draft.displayName.trim().length === 0
           }
           onClick={onCreate}
         >

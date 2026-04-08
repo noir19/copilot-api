@@ -1,6 +1,6 @@
 import { events } from "fetch-event-stream"
 
-import { copilotHeaders, copilotBaseUrl } from "~/lib/api-config"
+import { copilotBaseUrl, copilotHeaders } from "~/lib/api-config"
 import { state } from "~/lib/state"
 import { fetchWithCopilotToken } from "~/services/copilot/fetch-with-copilot-token"
 
@@ -9,8 +9,8 @@ export const createChatCompletions = async (
 ) => {
   const enableVision = payload.messages.some(
     (x) =>
-      typeof x.content !== "string"
-      && x.content?.some((x) => x.type === "image_url"),
+      typeof x.content !== "string" &&
+      x.content?.some((x) => x.type === "image_url"),
   )
 
   // Agent/user check for X-Initiator header

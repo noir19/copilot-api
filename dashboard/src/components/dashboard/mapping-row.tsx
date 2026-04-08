@@ -68,9 +68,9 @@ function MappingStatusCell({
   return (
     <Badge
       className={cn(
-        enabled ?
-          "bg-emerald-50 text-emerald-700"
-        : "bg-slate-100 text-slate-500",
+        enabled
+          ? "bg-emerald-50 text-emerald-700"
+          : "bg-slate-100 text-slate-500",
       )}
     >
       {enabled ? "Enabled" : "Disabled"}
@@ -162,7 +162,7 @@ export function MappingRow({
         />
       </TableCell>
       <TableCell>
-        {isEditing ?
+        {isEditing ? (
           <Input
             onChange={(event) =>
               setEditingDraft((current) => ({
@@ -172,7 +172,9 @@ export function MappingRow({
             }
             value={editingDraft.displayName}
           />
-        : mapping.displayName}
+        ) : (
+          mapping.displayName
+        )}
       </TableCell>
       <TableCell>
         <MappingStatusCell

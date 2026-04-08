@@ -43,12 +43,12 @@ export const checkUsage = defineCommand({
       )
 
       consola.box(
-        `Copilot Usage (plan: ${usage.copilot_plan})\n`
-          + `Quota resets: ${usage.quota_reset_date}\n`
-          + `\nQuotas:\n`
-          + `  ${premiumLine}\n`
-          + `  ${chatLine}\n`
-          + `  ${completionsLine}`,
+        `Copilot Usage (plan: ${usage.copilot_plan})\n` +
+          `Quota resets: ${usage.quota_reset_date}\n` +
+          `\nQuotas:\n` +
+          `  ${premiumLine}\n` +
+          `  ${chatLine}\n` +
+          `  ${completionsLine}`,
       )
     } catch (err) {
       consola.error("Failed to fetch Copilot usage:", err)

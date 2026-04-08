@@ -50,8 +50,9 @@ export function enqueueRequestLog(input: EnqueueRequestLogInput): void {
       timestamp: new Date().toISOString(),
       route: input.route,
       modelRaw: model,
-      modelDisplay:
-        model ? getModelMappingStore().resolveDisplayName(model) : null,
+      modelDisplay: model
+        ? getModelMappingStore().resolveDisplayName(model)
+        : null,
       stream: input.stream ?? false,
       status,
       statusCode,

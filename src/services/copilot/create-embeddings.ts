@@ -1,4 +1,4 @@
-import { copilotHeaders, copilotBaseUrl } from "~/lib/api-config"
+import { copilotBaseUrl, copilotHeaders } from "~/lib/api-config"
 import { state } from "~/lib/state"
 import { fetchWithCopilotToken } from "~/services/copilot/fetch-with-copilot-token"
 

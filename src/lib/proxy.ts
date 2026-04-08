@@ -1,6 +1,6 @@
 import consola from "consola"
 import { getProxyForUrl } from "proxy-from-env"
-import { Agent, ProxyAgent, setGlobalDispatcher, type Dispatcher } from "undici"
+import { Agent, type Dispatcher, ProxyAgent, setGlobalDispatcher } from "undici"
 
 export function initProxyFromEnv(): void {
   if (typeof Bun !== "undefined") return
@@ -20,9 +20,9 @@ export function initProxyFromEnv(): void {
       ) {
         try {
           const origin =
-            typeof options.origin === "string" ?
-              new URL(options.origin)
-            : (options.origin as URL)
+            typeof options.origin === "string"
+              ? new URL(options.origin)
+              : (options.origin as URL)
           const get = getProxyForUrl as unknown as (
             u: string,
           ) => string | undefined

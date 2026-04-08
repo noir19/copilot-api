@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { defineCommand } from "citty"
-import consola from "consola"
 import fs from "node:fs/promises"
 import os from "node:os"
+import { defineCommand } from "citty"
+import consola from "consola"
 
 import { PATHS } from "./lib/paths"
 

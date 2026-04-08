@@ -4,10 +4,10 @@ import {
   createMapping,
   deleteMapping,
   EMPTY_DRAFT,
-  updateMapping,
   type MappingDraft,
   type MappingsResponse,
   type ModelMappingRecord,
+  updateMapping,
 } from "../../lib/dashboard-api"
 import { CreateMappingCard } from "./create-mapping-card"
 import { MappingsTableCard } from "./mappings-table-card"
@@ -34,9 +34,9 @@ export function MappingsPanel({
       await onChanged()
     } catch (actionError) {
       setError(
-        actionError instanceof Error ?
-          actionError.message
-        : "Failed to update model mappings",
+        actionError instanceof Error
+          ? actionError.message
+          : "Failed to update model mappings",
       )
     } finally {
       setIsSaving(false)
@@ -74,11 +74,11 @@ export function MappingsPanel({
 
   return (
     <div className="space-y-6">
-      {error ?
+      {error ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
-      : null}
+      ) : null}
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <MappingsTableCard
           editingDraft={editingDraft}
