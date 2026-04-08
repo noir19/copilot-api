@@ -16,6 +16,9 @@ RUN bun install --frozen-lockfile --production --ignore-scripts --no-cache
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/model-aliases.json ./model-aliases.json
 
+RUN mkdir -p /root/.local/share/copilot-api
+VOLUME ["/root/.local/share/copilot-api"]
+
 EXPOSE 4141
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
