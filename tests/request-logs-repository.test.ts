@@ -152,4 +152,49 @@ describe("request logs repository", () => {
     expect(requests[0]?.modelDisplay).toBe("GPT 4.1")
     expect(requests[1]?.modelDisplay).toBe("Claude Sonnet 4.5")
   })
+
+  test("deletes request logs older than the retention cutoff", async () => {
+    await repository.insertBatch([
+      {
+        timestamp: "2026-03-01T12:00:00.000Z",
+        route: "/v1/chat/completions",
+        modelRaw: "claude-sonnet-4-5",
+        modelDisplay: "Claude Sonnet 4.5",
+        stream: false,
+        status: "success",
+        statusCode: 200,
+        latencyMs: 120,
+        inputTokens: 100,
+        outputTokens: 200,
+        totalTokens: 300,
+        errorMessage: null,
+        accountType: "individual",
+      },
+      {
+        timestamp: "2026-04-08T12:05:00.000Z",
+        route: "/v1/messages",
+        modelRaw: "gpt-4.1",
+        modelDisplay: "GPT 4.1",
+        stream: true,
+        status: "error",
+        statusCode: 500,
+        latencyMs: 300,
+        inputTokens: 50,
+        outputTokens: 0,
+        totalTokens: 50,
+        errorMessage: "upstream failed",
+        accountType: "individual",
+      },
+    ])
+
+    const deleted = await repository.deleteOlderThan("2026-03-24T00:00:00.000Z")
+    const requests = await repository.getRecentRequests({
+      limit: 10,
+      offset: 0,
+    })
+
+    expect(deleted).toBe(1)
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.modelDisplay).toBe("GPT 4.1")
+  })
 })

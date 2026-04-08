@@ -381,6 +381,10 @@ The dashboard data is persisted in the same application data directory used for 
 
 - default SQLite path: `~/.local/share/copilot-api/copilot-api.db`
 - override path with `COPILOT_API_DB_PATH`
+- request logs are written asynchronously through an in-memory sink
+- request logs are retained for the most recent 15 days by default
+- override retention with `COPILOT_API_REQUEST_LOG_RETENTION_DAYS`
+- override background cleanup cadence with `COPILOT_API_REQUEST_LOG_CLEANUP_INTERVAL_MS`
 
 For frontend development:
 

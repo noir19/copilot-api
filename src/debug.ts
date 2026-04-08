@@ -5,6 +5,7 @@ import os from "node:os"
 import { defineCommand } from "citty"
 import consola from "consola"
 
+import { getDashboardConfig } from "./db/runtime"
 import { PATHS } from "./lib/paths"
 
 interface DebugInfo {
@@ -19,6 +20,10 @@ interface DebugInfo {
     APP_DIR: string
     GITHUB_TOKEN_PATH: string
     DATABASE_PATH: string
+  }
+  dashboard: {
+    REQUEST_LOG_CLEANUP_INTERVAL_MS: number
+    REQUEST_LOG_RETENTION_DAYS: number
   }
   tokenExists: boolean
 }
@@ -69,10 +74,16 @@ async function getDebugInfo(): Promise<DebugInfo> {
     getPackageVersion(),
     checkTokenExists(),
   ])
+  const dashboardConfig = getDashboardConfig()
 
   return {
     version,
     runtime: getRuntimeInfo(),
+    dashboard: {
+      REQUEST_LOG_CLEANUP_INTERVAL_MS:
+        dashboardConfig.requestLogCleanupIntervalMs,
+      REQUEST_LOG_RETENTION_DAYS: dashboardConfig.requestLogRetentionDays,
+    },
     paths: {
       APP_DIR: PATHS.APP_DIR,
       GITHUB_TOKEN_PATH: PATHS.GITHUB_TOKEN_PATH,
@@ -92,6 +103,10 @@ Paths:
 - APP_DIR: ${info.paths.APP_DIR}
 - GITHUB_TOKEN_PATH: ${info.paths.GITHUB_TOKEN_PATH}
 - DATABASE_PATH: ${info.paths.DATABASE_PATH}
+
+Dashboard:
+- REQUEST_LOG_RETENTION_DAYS: ${info.dashboard.REQUEST_LOG_RETENTION_DAYS}
+- REQUEST_LOG_CLEANUP_INTERVAL_MS: ${info.dashboard.REQUEST_LOG_CLEANUP_INTERVAL_MS}
 
 Token exists: ${info.tokenExists ? "Yes" : "No"}`)
 }

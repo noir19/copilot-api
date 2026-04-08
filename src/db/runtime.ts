@@ -8,11 +8,16 @@ import {
 import { createRequestLogRepository } from "~/db/request-logs"
 import { createRequestSink } from "~/db/request-sink"
 import { initDatabase } from "~/db/schema"
+import {
+  getDashboardRuntimeConfig,
+  getRequestLogRetentionCutoff,
+} from "~/lib/dashboard-config"
 import { createModelMappingStore } from "~/lib/model-mapping-store"
 import { PATHS } from "~/lib/paths"
 
 const db = new Database(process.env.COPILOT_API_DB_PATH ?? PATHS.DATABASE_PATH)
 initDatabase(db)
+const dashboardRuntimeConfig = getDashboardRuntimeConfig()
 
 const modelMappingRepository = createModelMappingRepository(db)
 const requestLogRepository = createRequestLogRepository(db)
@@ -31,14 +36,30 @@ const requestSink = createRequestSink({
 let initialized = false
 let initializationPromise: Promise<void> | undefined
 
+async function pruneExpiredRequestLogs(): Promise<number> {
+  const cutoff = getRequestLogRetentionCutoff(
+    new Date(),
+    dashboardRuntimeConfig.requestLogRetentionDays,
+  )
+
+  return requestLogRepository.deleteOlderThan(cutoff)
+}
+
 export async function initializeDashboardRuntime(): Promise<void> {
   if (initialized) {
     return
   }
 
   if (!initializationPromise) {
-    initializationPromise = modelMappingStore.load().then(() => {
+    initializationPromise = modelMappingStore.load().then(async () => {
       requestSink.start()
+
+      await pruneExpiredRequestLogs()
+
+      setInterval(() => {
+        void pruneExpiredRequestLogs()
+      }, dashboardRuntimeConfig.requestLogCleanupIntervalMs)
+
       initialized = true
     })
   }
@@ -64,6 +85,10 @@ export function getModelMappingRepository() {
 
 export function getRequestLogRepository() {
   return requestLogRepository
+}
+
+export function getDashboardConfig() {
+  return dashboardRuntimeConfig
 }
 
 export async function createModelMapping(input: CreateModelMappingInput) {

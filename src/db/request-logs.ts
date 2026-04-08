@@ -246,5 +246,13 @@ export function createRequestLogRepository(db: Database) {
     }): Promise<Array<RecentRequestRow>> {
       return Promise.resolve(readRecentRequests(db, options))
     },
+
+    deleteOlderThan(cutoff: string): Promise<number> {
+      const result = db
+        .query("DELETE FROM request_logs WHERE timestamp < ?1")
+        .run(cutoff)
+
+      return Promise.resolve(result.changes)
+    },
   }
 }
