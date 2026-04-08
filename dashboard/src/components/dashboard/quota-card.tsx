@@ -1,0 +1,43 @@
+import type { QuotaDetail } from "../../lib/dashboard-api"
+
+import {
+  formatNumber,
+  formatPercent,
+  resolveQuotaValue,
+} from "../../lib/format"
+import { Badge } from "../ui/badge"
+
+export function QuotaCard({
+  label,
+  quota,
+}: {
+  label: string
+  quota: QuotaDetail
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-slate-700">{label}</p>
+        <Badge className="bg-white text-slate-600">{quota.quota_id}</Badge>
+      </div>
+      <p className="mt-4 text-2xl font-semibold text-slate-950">
+        {resolveQuotaValue(quota)}
+      </p>
+      <div className="mt-3 h-2 rounded-full bg-slate-200">
+        <div
+          className="h-full rounded-full bg-amber-500 transition-[width]"
+          style={{
+            width: `${Math.max(0, Math.min(quota.percent_remaining, 100))}%`,
+          }}
+        />
+      </div>
+      <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+        <span>{formatPercent(quota.percent_remaining)} remaining</span>
+        <span>
+          overage {formatNumber(quota.overage_count)}
+          {quota.overage_permitted ? " allowed" : " blocked"}
+        </span>
+      </div>
+    </div>
+  )
+}

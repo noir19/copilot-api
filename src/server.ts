@@ -12,6 +12,10 @@ import {
 } from "./db/runtime"
 import { honoPrintFn } from "./lib/logger"
 import { completionRoutes } from "./routes/chat-completions/route"
+import {
+  serveDashboardAsset,
+  serveDashboardIndex,
+} from "./routes/dashboard/assets"
 import { createDashboardRoute } from "./routes/dashboard/route"
 import { embeddingRoutes } from "./routes/embeddings/route"
 import { messageRoutes } from "./routes/messages/route"
@@ -26,6 +30,9 @@ server.use(logger(honoPrintFn))
 server.use(cors())
 
 server.get("/", (c) => c.text("Server running"))
+server.get("/dashboard", () => serveDashboardIndex())
+server.get("/dashboard/", () => serveDashboardIndex())
+server.get("/dashboard/assets/*", (c) => serveDashboardAsset(c.req.path))
 
 server.route("/chat/completions", completionRoutes)
 server.route("/models", modelRoutes)
