@@ -5,6 +5,7 @@ import { streamSSE, type SSEMessage } from "hono/streaming"
 
 import { awaitApproval } from "~/lib/approval"
 import { checkRateLimit } from "~/lib/rate-limit"
+import { enqueueRequestLog } from "~/lib/request-log"
 import { state } from "~/lib/state"
 import { getTokenCount } from "~/lib/tokenizer"
 import { isNullish } from "~/lib/utils"
@@ -15,6 +16,7 @@ import {
 } from "~/services/copilot/create-chat-completions"
 
 export async function handleCompletion(c: Context) {
+  const startedAt = Date.now()
   await checkRateLimit(state)
 
   let payload = await c.req.json<ChatCompletionsPayload>()
@@ -47,20 +49,51 @@ export async function handleCompletion(c: Context) {
     consola.debug("Set max_tokens to:", JSON.stringify(payload.max_tokens))
   }
 
-  const response = await createChatCompletions(payload)
+  try {
+    const response = await createChatCompletions(payload)
 
-  if (isNonStreaming(response)) {
-    consola.debug("Non-streaming response:", JSON.stringify(response))
-    return c.json(response)
-  }
-
-  consola.debug("Streaming response")
-  return streamSSE(c, async (stream) => {
-    for await (const chunk of response) {
-      consola.debug("Streaming chunk:", JSON.stringify(chunk))
-      await stream.writeSSE(chunk as SSEMessage)
+    if (isNonStreaming(response)) {
+      consola.debug("Non-streaming response:", JSON.stringify(response))
+      enqueueRequestLog({
+        route: c.req.path,
+        startedAt,
+        model: payload.model,
+        stream: false,
+        responseStatus: 200,
+        inputTokens: response.usage?.prompt_tokens ?? null,
+        outputTokens: response.usage?.completion_tokens ?? null,
+        totalTokens: response.usage?.total_tokens ?? null,
+        accountType: state.accountType,
+      })
+      return c.json(response)
     }
-  })
+
+    enqueueRequestLog({
+      route: c.req.path,
+      startedAt,
+      model: payload.model,
+      stream: true,
+      responseStatus: 200,
+      accountType: state.accountType,
+    })
+    consola.debug("Streaming response")
+    return streamSSE(c, async (stream) => {
+      for await (const chunk of response) {
+        consola.debug("Streaming chunk:", JSON.stringify(chunk))
+        await stream.writeSSE(chunk as SSEMessage)
+      }
+    })
+  } catch (error) {
+    enqueueRequestLog({
+      route: c.req.path,
+      startedAt,
+      model: payload.model,
+      stream: payload.stream ?? false,
+      error,
+      accountType: state.accountType,
+    })
+    throw error
+  }
 }
 
 const isNonStreaming = (

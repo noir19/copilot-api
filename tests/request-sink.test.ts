@@ -142,4 +142,27 @@ describe("request sink", () => {
     ])
     expect(sink.getMetrics().dropped).toBe(1)
   })
+
+  test("flushes queued records on the background interval", async () => {
+    const persisted: Array<RequestLogRecord> = []
+    const sink = createRequestSink({
+      writeBatch(records) {
+        persisted.push(...records)
+        return Promise.resolve()
+      },
+      flushIntervalMs: 10,
+      batchSize: 100,
+      maxQueueSize: 10,
+      maxRetryAttempts: 3,
+      retryWindowMs: 60_000,
+    })
+
+    sink.start()
+    sink.enqueue(createRecord())
+
+    await new Promise((resolve) => setTimeout(resolve, 30))
+
+    sink.stop()
+    expect(persisted).toHaveLength(1)
+  })
 })

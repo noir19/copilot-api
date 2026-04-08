@@ -34,6 +34,11 @@ interface RequestSinkOptions {
   clock?: RequestSinkClock
 }
 
+interface RequestSinkTimerApi {
+  setInterval(handler: () => void, delayMs: number): TimerHandle
+  clearInterval(handle: TimerHandle): void
+}
+
 interface RequestSinkMetrics {
   queued: number
   retrying: number
@@ -45,12 +50,67 @@ interface RequestSinkSnapshot {
   retrying: Array<RequestLogRecord>
 }
 
+type TimerHandle = ReturnType<typeof setInterval>
+
 const defaultClock: RequestSinkClock = {
   now: () => Date.now(),
 }
 
+const defaultTimers: RequestSinkTimerApi = {
+  setInterval(handler, delayMs) {
+    return setInterval(handler, delayMs)
+  },
+  clearInterval(handle) {
+    clearInterval(handle)
+  },
+}
+
+function recalculateRetrying(retryQueue: Array<PendingBatch>): number {
+  return retryQueue.reduce(
+    (count, pending) => count + pending.records.length,
+    0,
+  )
+}
+
+function shouldDropBatch(
+  batch: PendingBatch,
+  clock: RequestSinkClock,
+  options: RequestSinkOptions,
+): boolean {
+  const ageMs = clock.now() - batch.firstQueuedAt
+  return (
+    batch.attempts >= options.maxRetryAttempts || ageMs > options.retryWindowMs
+  )
+}
+
+async function flushBatch(
+  records: Array<RequestLogRecord>,
+  writeBatch: (records: Array<RequestLogRecord>) => Promise<void>,
+  clock: RequestSinkClock,
+): Promise<PendingBatch | null> {
+  if (records.length === 0) {
+    return null
+  }
+
+  const batch: PendingBatch = {
+    records,
+    firstQueuedAt: clock.now(),
+    attempts: 1,
+  }
+
+  try {
+    await writeBatch(records)
+    return null
+  } catch {
+    return batch
+  }
+}
+
 export function createRequestSink(options: RequestSinkOptions) {
   const clock = options.clock ?? defaultClock
+  const timers = defaultTimers
+  const writeBatch = (records: Array<RequestLogRecord>) =>
+    options.writeBatch(records)
   const queue: Array<RequestLogRecord> = []
   const retryQueue: Array<PendingBatch> = []
   const metrics: RequestSinkMetrics = {
@@ -69,92 +129,91 @@ export function createRequestSink(options: RequestSinkOptions) {
 
   const markBatchForRetry = (batch: PendingBatch) => {
     retryQueue.push(batch)
-    metrics.retrying = retryQueue.reduce(
-      (count, pending) => count + pending.records.length,
-      0,
-    )
+    metrics.retrying = recalculateRetrying(retryQueue)
   }
 
-  const shouldDropBatch = (batch: PendingBatch) => {
-    const ageMs = clock.now() - batch.firstQueuedAt
-    return (
-      batch.attempts >= options.maxRetryAttempts
-      || ageMs > options.retryWindowMs
-    )
+  let flushTimer: TimerHandle | undefined
+
+  const enqueue = (record: RequestLogRecord) => {
+    queue.push(record)
+    trimQueue()
   }
 
-  const flushBatch = async (records: Array<RequestLogRecord>) => {
-    if (records.length === 0) {
+  const flushNow = async () => {
+    const records = queue.splice(0, options.batchSize)
+    metrics.queued = queue.length
+    const failedBatch = await flushBatch(records, writeBatch, clock)
+    if (failedBatch) {
+      markBatchForRetry(failedBatch)
+    }
+  }
+
+  const retryFailed = async () => {
+    const pending = retryQueue.splice(0)
+
+    for (const batch of pending) {
+      if (shouldDropBatch(batch, clock, options)) {
+        metrics.dropped += batch.records.length
+        continue
+      }
+
+      const nextBatch: PendingBatch = {
+        ...batch,
+        attempts: batch.attempts + 1,
+      }
+
+      try {
+        await writeBatch(batch.records)
+      } catch {
+        if (shouldDropBatch(nextBatch, clock, options)) {
+          metrics.dropped += nextBatch.records.length
+        } else {
+          retryQueue.push(nextBatch)
+        }
+      }
+    }
+
+    metrics.retrying = recalculateRetrying(retryQueue)
+  }
+
+  const start = (flush: () => Promise<void>, retry: () => Promise<void>) => {
+    if (flushTimer) {
       return
     }
 
-    const batch: PendingBatch = {
-      records,
-      firstQueuedAt: clock.now(),
-      attempts: 1,
-    }
-
-    try {
-      await options.writeBatch(records)
-    } catch {
-      markBatchForRetry(batch)
-    }
+    flushTimer = timers.setInterval(() => {
+      void flush()
+      void retry()
+    }, options.flushIntervalMs)
   }
 
+  const stop = () => {
+    if (!flushTimer) {
+      return
+    }
+
+    timers.clearInterval(flushTimer)
+    flushTimer = undefined
+  }
+
+  const getMetrics = (): RequestSinkMetrics => ({
+    ...metrics,
+  })
+
+  const getSnapshot = (): RequestSinkSnapshot => ({
+    queued: [...queue],
+    retrying: retryQueue.flatMap((batch) => batch.records),
+  })
+
   return {
-    enqueue(record: RequestLogRecord): void {
-      queue.push(record)
-      trimQueue()
+    enqueue,
+    flushNow,
+    retryFailed,
+    getMetrics,
+    getSnapshot,
+    start() {
+      start(flushNow, retryFailed)
     },
-
-    async flushNow(): Promise<void> {
-      const records = queue.splice(0, options.batchSize)
-      metrics.queued = queue.length
-      await flushBatch(records)
-    },
-
-    async retryFailed(): Promise<void> {
-      const pending = retryQueue.splice(0)
-
-      for (const batch of pending) {
-        if (shouldDropBatch(batch)) {
-          metrics.dropped += batch.records.length
-          continue
-        }
-
-        const nextBatch: PendingBatch = {
-          ...batch,
-          attempts: batch.attempts + 1,
-        }
-
-        try {
-          await options.writeBatch(batch.records)
-        } catch {
-          if (shouldDropBatch(nextBatch)) {
-            metrics.dropped += nextBatch.records.length
-          } else {
-            retryQueue.push(nextBatch)
-          }
-        }
-      }
-
-      metrics.retrying = retryQueue.reduce(
-        (count, batch) => count + batch.records.length,
-        0,
-      )
-    },
-
-    getMetrics(): RequestSinkMetrics {
-      return {
-        ...metrics,
-      }
-    },
-
-    getSnapshot(): RequestSinkSnapshot {
-      return {
-        queued: [...queue],
-        retrying: retryQueue.flatMap((batch) => batch.records),
-      }
-    },
+    stop,
   }
 }

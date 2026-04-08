@@ -5,7 +5,8 @@ import {
   createModelMappingRepository,
   type UpdateModelMappingInput,
 } from "~/db/model-mappings"
-import { createRequestSink, type RequestLogRecord } from "~/db/request-sink"
+import { createRequestLogRepository } from "~/db/request-logs"
+import { createRequestSink } from "~/db/request-sink"
 import { initDatabase } from "~/db/schema"
 import { createModelMappingStore } from "~/lib/model-mapping-store"
 import { PATHS } from "~/lib/paths"
@@ -14,73 +15,11 @@ const db = new Database(process.env.COPILOT_API_DB_PATH ?? PATHS.DATABASE_PATH)
 initDatabase(db)
 
 const modelMappingRepository = createModelMappingRepository(db)
+const requestLogRepository = createRequestLogRepository(db)
 const modelMappingStore = createModelMappingStore(modelMappingRepository)
 const requestSink = createRequestSink({
   writeBatch(records) {
-    if (records.length === 0) {
-      return Promise.resolve()
-    }
-
-    const insert = db.query(
-      `INSERT INTO request_logs (
-        id,
-        request_id,
-        timestamp,
-        route,
-        model_raw,
-        model_display,
-        stream,
-        status,
-        status_code,
-        latency_ms,
-        input_tokens,
-        output_tokens,
-        total_tokens,
-        error_message,
-        account_type
-      ) VALUES (
-        $id,
-        $request_id,
-        $timestamp,
-        $route,
-        $model_raw,
-        $model_display,
-        $stream,
-        $status,
-        $status_code,
-        $latency_ms,
-        $input_tokens,
-        $output_tokens,
-        $total_tokens,
-        $error_message,
-        $account_type
-      )`,
-    )
-
-    const transaction = db.transaction((batch: Array<RequestLogRecord>) => {
-      for (const record of batch) {
-        insert.run({
-          $id: crypto.randomUUID(),
-          $request_id: null,
-          $timestamp: record.timestamp,
-          $route: record.route,
-          $model_raw: record.modelRaw,
-          $model_display: record.modelDisplay,
-          $stream: record.stream ? 1 : 0,
-          $status: record.status,
-          $status_code: record.statusCode,
-          $latency_ms: record.latencyMs,
-          $input_tokens: record.inputTokens,
-          $output_tokens: record.outputTokens,
-          $total_tokens: record.totalTokens,
-          $error_message: record.errorMessage,
-          $account_type: record.accountType,
-        })
-      }
-    })
-
-    transaction(records)
-    return Promise.resolve()
+    return requestLogRepository.insertBatch(records)
   },
   flushIntervalMs: 500,
   batchSize: 100,
@@ -99,6 +38,7 @@ export async function initializeDashboardRuntime(): Promise<void> {
 
   if (!initializationPromise) {
     initializationPromise = modelMappingStore.load().then(() => {
+      requestSink.start()
       initialized = true
     })
   }
@@ -120,6 +60,10 @@ export function getModelMappingStore() {
 
 export function getModelMappingRepository() {
   return modelMappingRepository
+}
+
+export function getRequestLogRepository() {
+  return requestLogRepository
 }
 
 export async function createModelMapping(input: CreateModelMappingInput) {
