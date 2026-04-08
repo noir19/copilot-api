@@ -12,8 +12,6 @@ services:
       #
       # You can populate github_token by running: copilot-api auth
       - /path/to/copilot-data:/root/.local/share/copilot-api
-      # Optional: mount custom model alias config
-      # - ./model-aliases.json:/app/model-aliases.json:ro
     environment:
       # Read GitHub token from the mounted application data directory
       - GH_TOKEN_FILE=/root/.local/share/copilot-api/github_token

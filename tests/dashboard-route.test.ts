@@ -65,6 +65,16 @@ function createReadOnlyApp(): Hono {
   app.route(
     "/api/dashboard",
     createDashboardRoute({
+      createAlias(input) {
+        return Promise.resolve({
+          id: "alias-2",
+          sourceModel: input.sourceModel,
+          targetModel: input.targetModel,
+          enabled: input.enabled,
+          createdAt: "2026-04-08T12:00:00.000Z",
+          updatedAt: "2026-04-08T12:00:00.000Z",
+        })
+      },
       getUsage() {
         return Promise.resolve(createUsageResponse())
       },
@@ -85,6 +95,18 @@ function createReadOnlyApp(): Hono {
             requestCount: 7,
             totalTokens: 1000,
             lastRequestedAt: "2026-04-08T12:00:00.000Z",
+          },
+        ])
+      },
+      listAliases() {
+        return Promise.resolve([
+          {
+            id: "alias-1",
+            sourceModel: "claude-sonnet",
+            targetModel: "claude-sonnet-4-5",
+            enabled: true,
+            createdAt: "2026-04-08T11:00:00.000Z",
+            updatedAt: "2026-04-08T11:00:00.000Z",
           },
         ])
       },
@@ -120,6 +142,9 @@ function createReadOnlyApp(): Hono {
           },
         ])
       },
+      removeAlias() {
+        return Promise.resolve(true)
+      },
       createMapping(input) {
         return Promise.resolve({
           id: "map-2",
@@ -140,8 +165,27 @@ function createReadOnlyApp(): Hono {
           updatedAt: "2026-04-08T12:05:00.000Z",
         })
       },
+      updateAlias(id, input) {
+        return Promise.resolve({
+          id,
+          sourceModel: input.sourceModel,
+          targetModel: input.targetModel,
+          enabled: input.enabled,
+          createdAt: "2026-04-08T12:00:00.000Z",
+          updatedAt: "2026-04-08T12:05:00.000Z",
+        })
+      },
       removeMapping() {
         return Promise.resolve(true)
+      },
+      getAliasSnapshot() {
+        return {
+          version: 1,
+          count: 1,
+          enabledCount: 1,
+          loadedAt: "2026-04-08T11:00:00.000Z",
+          updatedAt: "2026-04-08T11:00:00.000Z",
+        }
       },
       getMappingSnapshot() {
         return {
@@ -159,6 +203,16 @@ function createReadOnlyApp(): Hono {
 }
 
 function createMutableMappingsApp(): Hono {
+  const aliases = [
+    {
+      id: "alias-1",
+      sourceModel: "claude-sonnet",
+      targetModel: "claude-sonnet-4-5",
+      enabled: true,
+      createdAt: "2026-04-08T11:00:00.000Z",
+      updatedAt: "2026-04-08T11:00:00.000Z",
+    },
+  ]
   const mappings = [
     {
       id: "map-1",
@@ -174,6 +228,18 @@ function createMutableMappingsApp(): Hono {
   app.route(
     "/api/dashboard",
     createDashboardRoute({
+      createAlias(input) {
+        const created = {
+          id: "alias-2",
+          sourceModel: input.sourceModel,
+          targetModel: input.targetModel,
+          enabled: input.enabled,
+          createdAt: "2026-04-08T12:00:00.000Z",
+          updatedAt: "2026-04-08T12:00:00.000Z",
+        }
+        aliases.push(created)
+        return Promise.resolve(created)
+      },
       getUsage() {
         return Promise.resolve(createUsageResponse())
       },
@@ -189,11 +255,23 @@ function createMutableMappingsApp(): Hono {
       getModelBreakdown() {
         return Promise.resolve([])
       },
+      listAliases() {
+        return Promise.resolve(aliases)
+      },
       getRecentRequests() {
         return Promise.resolve([])
       },
       listMappings() {
         return Promise.resolve(mappings)
+      },
+      removeAlias(id) {
+        const index = aliases.findIndex((item) => item.id === id)
+        if (index === -1) {
+          return Promise.resolve(false)
+        }
+
+        aliases.splice(index, 1)
+        return Promise.resolve(true)
       },
       createMapping(input) {
         const created = {
@@ -206,6 +284,18 @@ function createMutableMappingsApp(): Hono {
         }
         mappings.push(created)
         return Promise.resolve(created)
+      },
+      updateAlias(id, input) {
+        const alias = aliases.find((item) => item.id === id)
+        if (!alias) {
+          throw new Error("missing alias")
+        }
+
+        alias.sourceModel = input.sourceModel
+        alias.targetModel = input.targetModel
+        alias.enabled = input.enabled
+        alias.updatedAt = "2026-04-08T12:05:00.000Z"
+        return Promise.resolve(alias)
       },
       updateMapping(id, input) {
         const mapping = mappings.find((item) => item.id === id)
@@ -227,6 +317,15 @@ function createMutableMappingsApp(): Hono {
 
         mappings.splice(index, 1)
         return Promise.resolve(true)
+      },
+      getAliasSnapshot() {
+        return {
+          version: 1,
+          count: aliases.length,
+          enabledCount: aliases.filter((alias) => alias.enabled).length,
+          loadedAt: "2026-04-08T11:00:00.000Z",
+          updatedAt: "2026-04-08T11:00:00.000Z",
+        }
       },
       getMappingSnapshot() {
         return {
@@ -272,6 +371,13 @@ describe("dashboard route", () => {
     expect(mappings.data).toHaveLength(1)
     expect(mappings.meta?.version).toBe(1)
 
+    const aliasesResponse = await app.request("/api/dashboard/aliases")
+    const aliases = (await aliasesResponse.json()) as DashboardResponse<
+      Array<unknown>
+    >
+    expect(aliases.data).toHaveLength(1)
+    expect(aliases.meta?.version).toBe(1)
+
     const usageResponse = await app.request("/api/dashboard/usage")
     const usage = (await usageResponse.json()) as CopilotUsageResponse
     expect(usage.copilot_plan).toBe("individual")
@@ -313,5 +419,43 @@ describe("dashboard route", () => {
     >
     expect(list.data).toHaveLength(1)
     expect(list.data[0]?.id).toBe("map-1")
+  })
+
+  test("supports creating, updating, and deleting model aliases", async () => {
+    const app = createMutableMappingsApp()
+
+    const createResponse = await app.request("/api/dashboard/aliases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        sourceModel: "haiku",
+        targetModel: "claude-haiku-4-5",
+        enabled: true,
+      }),
+    })
+    expect(createResponse.status).toBe(201)
+
+    const updateResponse = await app.request("/api/dashboard/aliases/alias-2", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        sourceModel: "haiku",
+        targetModel: "claude-haiku-4-5-latest",
+        enabled: false,
+      }),
+    })
+    expect(updateResponse.status).toBe(200)
+
+    const deleteResponse = await app.request("/api/dashboard/aliases/alias-2", {
+      method: "DELETE",
+    })
+    expect(deleteResponse.status).toBe(200)
+
+    const listResponse = await app.request("/api/dashboard/aliases")
+    const list = (await listResponse.json()) as DashboardResponse<
+      Array<{ id: string }>
+    >
+    expect(list.data).toHaveLength(1)
+    expect(list.data[0]?.id).toBe("alias-1")
   })
 })

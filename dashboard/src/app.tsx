@@ -1,14 +1,24 @@
-import { Activity, Bot, Database, RefreshCcw, Settings2 } from "lucide-react"
+import {
+  Activity,
+  Bot,
+  Database,
+  FileText,
+  RefreshCcw,
+  Settings2,
+} from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
-
 import { MappingsPanel } from "./components/dashboard/mappings-panel"
+import { ModelAliasesPanel } from "./components/dashboard/model-aliases-panel"
 import { OverviewPanel } from "./components/dashboard/overview-panel"
+import { RequestLogsPanel } from "./components/dashboard/request-logs-panel"
 import { SettingsPanel } from "./components/dashboard/settings-panel"
 import { Badge } from "./components/ui/badge"
 import { Button } from "./components/ui/button"
 import { Card, CardContent } from "./components/ui/card"
 import {
+  type AliasesResponse,
   type DashboardData,
+  loadAliases,
   loadDashboardData,
   loadMappings,
   type MappingsResponse,
@@ -16,16 +26,18 @@ import {
 import { formatNumber } from "./lib/format"
 import { cn } from "./lib/utils"
 
-type DashboardTab = "overview" | "mappings" | "settings"
+type DashboardTab = "overview" | "logs" | "aliases" | "mappings" | "settings"
 
 const TAB_ITEMS: Array<{
   icon: typeof Activity
   key: DashboardTab
   label: string
 }> = [
-  { icon: Activity, key: "overview", label: "Overview" },
-  { icon: Bot, key: "mappings", label: "Model Mappings" },
-  { icon: Settings2, key: "settings", label: "Settings" },
+  { icon: Activity, key: "overview", label: "概览" },
+  { icon: FileText, key: "logs", label: "日志" },
+  { icon: Bot, key: "aliases", label: "模型别名" },
+  { icon: Bot, key: "mappings", label: "展示映射" },
+  { icon: Settings2, key: "settings", label: "设置" },
 ]
 
 function DashboardHeader({
@@ -46,17 +58,17 @@ function DashboardHeader({
           </div>
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.22em] text-amber-700">
-              Copilot API Ops
+              Copilot API 控制台
             </p>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-              Usage and model control plane
+              调用量与模型运维面板
             </h1>
           </div>
         </div>
         <p className="max-w-2xl text-sm leading-6 text-slate-600">
-          Real dashboard data is sourced from SQLite request logs and the live
-          Copilot usage endpoint. Model aliases are persisted in SQLite and
-          served through the in-memory cache on the request path.
+          面板数据直接来自 SQLite 请求日志与实时 Copilot usage
+          接口。模型别名和展示映射都持久化在 SQLite
+          中，并通过内存缓存作用到运行时。
         </p>
       </div>
 
@@ -65,12 +77,12 @@ function DashboardHeader({
           <RefreshCcw
             className={cn("mr-2 h-4 w-4", isRefreshing && "animate-spin")}
           />
-          Refresh
+          刷新
         </Button>
         <Badge className="bg-white text-slate-600">
           {dashboardData
-            ? `${formatNumber(dashboardData.overview.totalRequests)} requests tracked`
-            : "loading"}
+            ? `已记录 ${formatNumber(dashboardData.overview.totalRequests)} 次请求`
+            : "加载中"}
         </Badge>
       </div>
     </header>
@@ -106,6 +118,7 @@ function DashboardTabs({
 
 function DashboardContent({
   activeTab,
+  aliasesResponse,
   dashboardData,
   error,
   isLoading,
@@ -113,6 +126,7 @@ function DashboardContent({
   onRefresh,
 }: {
   activeTab: DashboardTab
+  aliasesResponse: AliasesResponse | null
   dashboardData: DashboardData | null
   error: string | null
   isLoading: boolean
@@ -123,7 +137,7 @@ function DashboardContent({
     return (
       <Card>
         <CardContent className="flex min-h-[240px] items-center justify-center text-sm text-slate-500">
-          Loading dashboard data...
+          正在加载面板数据...
         </CardContent>
       </Card>
     )
@@ -139,13 +153,19 @@ function DashboardContent({
     )
   }
 
-  if (!dashboardData || !mappingsResponse) {
+  if (!dashboardData || !mappingsResponse || !aliasesResponse) {
     return null
   }
 
   return (
     <>
       {activeTab === "overview" ? <OverviewPanel data={dashboardData} /> : null}
+      {activeTab === "logs" ? (
+        <RequestLogsPanel requests={dashboardData.recentRequests} />
+      ) : null}
+      {activeTab === "aliases" ? (
+        <ModelAliasesPanel aliases={aliasesResponse} onChanged={onRefresh} />
+      ) : null}
       {activeTab === "mappings" ? (
         <MappingsPanel mappings={mappingsResponse} onChanged={onRefresh} />
       ) : null}
@@ -156,6 +176,8 @@ function DashboardContent({
 
 export function App() {
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview")
+  const [aliasesResponse, setAliasesResponse] =
+    useState<AliasesResponse | null>(null)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [mappingsResponse, setMappingsResponse] =
     useState<MappingsResponse | null>(null)
@@ -168,17 +190,19 @@ export function App() {
     setError(null)
 
     try {
-      const [data, mappings] = await Promise.all([
+      const [data, aliases, mappings] = await Promise.all([
         loadDashboardData(),
+        loadAliases(),
         loadMappings(),
       ])
       setDashboardData(data)
+      setAliasesResponse(aliases)
       setMappingsResponse(mappings)
     } catch (refreshError) {
       setError(
         refreshError instanceof Error
           ? refreshError.message
-          : "Failed to load dashboard data",
+          : "加载面板数据失败",
       )
     } finally {
       setIsLoading(false)
@@ -201,6 +225,7 @@ export function App() {
         <DashboardTabs activeTab={activeTab} onSelect={setActiveTab} />
         <DashboardContent
           activeTab={activeTab}
+          aliasesResponse={aliasesResponse}
           dashboardData={dashboardData}
           error={error}
           isLoading={isLoading}

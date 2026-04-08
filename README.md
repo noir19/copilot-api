@@ -36,6 +36,7 @@ A reverse-engineered proxy for the GitHub Copilot API that exposes it as an Open
 - **OpenAI & Anthropic Compatibility**: Exposes GitHub Copilot as an OpenAI-compatible (`/v1/chat/completions`, `/v1/models`, `/v1/embeddings`) and Anthropic-compatible (`/v1/messages`) API.
 - **Claude Code Integration**: Easily configure and launch [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) to use Copilot as its backend with a simple command-line flag (`--claude-code`).
 - **Usage Dashboard**: A web-based dashboard to monitor your Copilot API usage, view quotas, and see detailed statistics.
+- **SQLite-backed Dashboard Control Plane**: The dashboard persists request logs, model aliases, and display-name mappings in SQLite so operational data survives restarts and can be managed in the UI or via SQL.
 - **Rate Limit Control**: Manage API usage with rate-limiting options (`--rate-limit`) and a waiting mechanism (`--wait`) to prevent errors from rapid requests.
 - **Manual Request Approval**: Manually approve or deny each API request for fine-grained control over usage (`--manual`).
 - **Token Visibility**: Option to display GitHub and Copilot tokens during authentication and refresh for debugging (`--show-token`).
@@ -147,6 +148,16 @@ docker run -p 4141:4141 -v $(pwd)/copilot-data:/root/.local/share/copilot-api co
 > **Note:**
 > The GitHub token metadata, SQLite dashboard database, and related runtime data will be stored in `copilot-data` on your host. This is mapped to `/root/.local/share/copilot-api` inside the container, ensuring persistence across restarts and preserving both token refresh state and dashboard history.
 
+### Dashboard Data Model
+
+The dashboard now uses SQLite as the source of truth for runtime metadata:
+
+- `request_logs`: async request log ingestion for dashboard trends, recent requests, and troubleshooting
+- `model_aliases`: request-path alias resolution, replacing the old `model-aliases.json` workflow
+- `model_mappings`: display-name mapping for dashboard presentation
+
+`model_aliases` and `model_mappings` are loaded into in-memory caches on startup and refreshed after dashboard writes, so requests do not query SQLite on every model lookup.
+
 ### Docker with Environment Variables
 
 You can still pass the GitHub token directly to the container using environment variables:
@@ -211,6 +222,20 @@ The Docker image includes:
 - Non-root user for enhanced security
 - Health check for container monitoring
 - Pinned base image version for reproducible builds
+
+## Dashboard
+
+Open `http://localhost:4141/dashboard` after starting the server.
+
+The dashboard is currently localized in Chinese and includes:
+
+- 实时 usage / quota 概览
+- 来自 SQLite 的请求量、模型分布和最近请求
+- 请求日志页面，便于排查错误、模型命中和延迟
+- 模型别名管理，直接写入 `model_aliases`
+- 展示映射管理，直接写入 `model_mappings`
+
+If you want to change model aliases outside the UI, update the SQLite database directly instead of using `model-aliases.json`.
 
 ## Using with npx
 

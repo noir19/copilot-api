@@ -41,6 +41,18 @@ export function initDatabase(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_model_mappings_source_model
       ON model_mappings(source_model);
 
+    CREATE TABLE IF NOT EXISTS model_aliases (
+      id TEXT PRIMARY KEY,
+      source_model TEXT NOT NULL UNIQUE,
+      target_model TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_model_aliases_source_model
+      ON model_aliases(source_model);
+
     CREATE TABLE IF NOT EXISTS dashboard_meta (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,

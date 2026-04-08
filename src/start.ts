@@ -7,7 +7,6 @@ import { type ServerHandler, serve } from "srvx"
 import invariant from "tiny-invariant"
 
 import { initializeDashboardRuntime } from "./db/runtime"
-import { loadModelAliases } from "./lib/model-map"
 import { ensurePaths } from "./lib/paths"
 import { initProxyFromEnv } from "./lib/proxy"
 import { generateEnvScript } from "./lib/shell"
@@ -56,7 +55,6 @@ export async function runServer(options: RunServerOptions): Promise<void> {
   await ensurePaths()
   await initializeDashboardRuntime()
   await cacheVSCodeVersion()
-  await loadModelAliases()
 
   await setupGitHubToken({
     githubToken: options.githubToken,

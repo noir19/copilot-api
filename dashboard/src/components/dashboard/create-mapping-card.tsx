@@ -26,9 +26,9 @@ export function CreateMappingCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create mapping</CardTitle>
+        <CardTitle>新增展示映射</CardTitle>
         <CardDescription>
-          Save aliases into SQLite and reload the process cache immediately.
+          只影响日志和统计里的展示名称，不影响真实请求的目标模型。
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -37,7 +37,7 @@ export function CreateMappingCard({
             className="text-sm font-medium text-slate-700"
             htmlFor="source-model"
           >
-            Source model
+            原始模型
           </label>
           <Input
             id="source-model"
@@ -56,7 +56,7 @@ export function CreateMappingCard({
             className="text-sm font-medium text-slate-700"
             htmlFor="display-name"
           >
-            Display name
+            展示名称
           </label>
           <Input
             id="display-name"
@@ -81,7 +81,7 @@ export function CreateMappingCard({
             }
             type="checkbox"
           />
-          Enable this mapping immediately
+          立即启用
         </label>
         <Button
           disabled={
@@ -91,7 +91,7 @@ export function CreateMappingCard({
           }
           onClick={onCreate}
         >
-          Save mapping
+          保存映射
         </Button>
       </CardContent>
     </Card>

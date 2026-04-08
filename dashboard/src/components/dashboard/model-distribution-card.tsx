@@ -24,22 +24,22 @@ export function ModelDistributionCard({
   requestModels: Array<ModelBreakdownRow>
 }) {
   const chartData = requestModels.slice(0, 6).map((item) => ({
-    name: item.modelDisplay ?? item.modelRaw ?? "Unknown",
+    name: item.modelDisplay ?? item.modelRaw ?? "未知模型",
     requests: item.requestCount,
   }))
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Model distribution</CardTitle>
+        <CardTitle>模型分布</CardTitle>
         <CardDescription>
-          Grouped by mapped display name first, then raw model.
+          先按展示映射聚合，其次回退到原始模型名。
         </CardDescription>
       </CardHeader>
       <CardContent className="h-[320px]">
         {chartData.length === 0 ? (
           <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
-            No requests have been logged yet.
+            还没有请求数据。
           </div>
         ) : (
           <ResponsiveContainer height="100%" width="100%">

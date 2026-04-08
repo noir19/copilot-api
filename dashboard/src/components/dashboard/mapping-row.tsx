@@ -60,7 +60,7 @@ function MappingStatusCell({
           onChange={(event) => onChange(event.target.checked)}
           type="checkbox"
         />
-        Enabled
+        启用
       </label>
     )
   }
@@ -73,7 +73,7 @@ function MappingStatusCell({
           : "bg-slate-100 text-slate-500",
       )}
     >
-      {enabled ? "Enabled" : "Disabled"}
+      {enabled ? "启用" : "停用"}
     </Badge>
   )
 }
@@ -103,7 +103,7 @@ function MappingActionButtons({
           onClick={() => onUpdate(mapping.id)}
           size="sm"
         >
-          Save
+          保存
         </Button>
         <Button
           disabled={isSaving}
@@ -111,7 +111,7 @@ function MappingActionButtons({
           size="sm"
           variant="outline"
         >
-          Cancel
+          取消
         </Button>
       </>
     )
@@ -120,7 +120,7 @@ function MappingActionButtons({
   return (
     <>
       <Button onClick={() => onEditStart(mapping)} size="sm" variant="outline">
-        Edit
+        编辑
       </Button>
       <Button
         disabled={isSaving}
@@ -128,7 +128,7 @@ function MappingActionButtons({
         size="sm"
         variant="ghost"
       >
-        Delete
+        删除
       </Button>
     </>
   )

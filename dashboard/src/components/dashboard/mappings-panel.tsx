@@ -34,9 +34,7 @@ export function MappingsPanel({
       await onChanged()
     } catch (actionError) {
       setError(
-        actionError instanceof Error
-          ? actionError.message
-          : "Failed to update model mappings",
+        actionError instanceof Error ? actionError.message : "展示映射更新失败",
       )
     } finally {
       setIsSaving(false)

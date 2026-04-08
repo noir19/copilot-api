@@ -50,35 +50,35 @@ export function MappingsTableCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Active model mappings</CardTitle>
+        <CardTitle>展示映射</CardTitle>
         <CardDescription>
-          These names are applied from the in-memory cache on the request path.
+          这张表只影响日志、统计和面板里的模型展示名称。
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-3">
-          <Badge>version {mappings.meta.version}</Badge>
-          <Badge>{mappings.meta.count} total</Badge>
-          <Badge>{mappings.meta.enabledCount} enabled</Badge>
-          <Badge>loaded {formatTimestamp(mappings.meta.loadedAt)}</Badge>
+          <Badge>版本 {mappings.meta.version}</Badge>
+          <Badge>共 {mappings.meta.count} 条</Badge>
+          <Badge>启用 {mappings.meta.enabledCount} 条</Badge>
+          <Badge>最近加载 {formatTimestamp(mappings.meta.loadedAt)}</Badge>
         </div>
 
         <TableWrapper>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Source model</TableHead>
-                <TableHead>Display name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead className="w-[180px]">Actions</TableHead>
+                <TableHead>原始模型</TableHead>
+                <TableHead>展示名称</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>更新时间</TableHead>
+                <TableHead className="w-[180px]">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {mappings.data.length === 0 ? (
                 <TableRow>
                   <TableCell className="py-6 text-slate-500" colSpan={5}>
-                    No model mappings yet.
+                    还没有展示映射。
                   </TableCell>
                 </TableRow>
               ) : (

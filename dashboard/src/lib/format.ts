@@ -10,7 +10,7 @@ export function formatPercent(value: number): string {
 
 export function formatTimestamp(value: string | null): string {
   if (!value) {
-    return "Never"
+    return "从未"
   }
 
   return new Intl.DateTimeFormat(undefined, {
@@ -21,8 +21,8 @@ export function formatTimestamp(value: string | null): string {
 
 export function resolveQuotaValue(quota: QuotaDetail): string {
   if (quota.unlimited) {
-    return "Unlimited"
+    return "无限制"
   }
 
-  return `${formatNumber(quota.remaining)} left`
+  return `剩余 ${formatNumber(quota.remaining)}`
 }

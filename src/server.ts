@@ -3,11 +3,16 @@ import { cors } from "hono/cors"
 import { logger } from "hono/logger"
 
 import {
+  createModelAlias,
   createModelMapping,
+  getModelAliasRepository,
+  getModelAliasStore,
   getModelMappingRepository,
   getModelMappingStore,
   getRequestLogRepository,
+  removeModelAlias,
   removeModelMapping,
+  updateModelAlias,
   updateModelMapping,
 } from "./db/runtime"
 import { honoPrintFn } from "./lib/logger"
@@ -42,15 +47,20 @@ server.route("/token", tokenRoute)
 server.route(
   "/api/dashboard",
   createDashboardRoute({
+    createAlias: createModelAlias,
     getUsage: getCopilotUsage,
     getOverview: () => getRequestLogRepository().getOverview(),
     getModelBreakdown: () => getRequestLogRepository().getModelBreakdown(),
+    listAliases: () => getModelAliasRepository().list(),
     getRecentRequests: (options) =>
       getRequestLogRepository().getRecentRequests(options),
     listMappings: () => getModelMappingRepository().list(),
+    removeAlias: removeModelAlias,
     createMapping: createModelMapping,
     updateMapping: updateModelMapping,
+    updateAlias: updateModelAlias,
     removeMapping: removeModelMapping,
+    getAliasSnapshot: () => getModelAliasStore().getSnapshot(),
     getMappingSnapshot: () => getModelMappingStore().getSnapshot(),
   }),
 )

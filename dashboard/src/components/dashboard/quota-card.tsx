@@ -32,10 +32,10 @@ export function QuotaCard({
         />
       </div>
       <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-        <span>{formatPercent(quota.percent_remaining)} remaining</span>
+        <span>剩余 {formatPercent(quota.percent_remaining)}</span>
         <span>
-          overage {formatNumber(quota.overage_count)}
-          {quota.overage_permitted ? " allowed" : " blocked"}
+          超额 {formatNumber(quota.overage_count)}
+          {quota.overage_permitted ? " 可用" : " 已阻止"}
         </span>
       </div>
     </div>

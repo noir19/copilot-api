@@ -1,29 +1,8 @@
-import fs from "node:fs/promises"
-import path from "node:path"
 import consola from "consola"
 
+import { getModelAliasStore } from "~/db/runtime"
+
 import { state } from "./state"
-
-type ModelAliasMap = Record<string, string>
-
-let aliases: ModelAliasMap = {}
-
-const CONFIG_FILENAME = "model-aliases.json"
-
-export async function loadModelAliases(): Promise<void> {
-  const configPath = path.resolve(CONFIG_FILENAME)
-
-  try {
-    const raw = await fs.readFile(configPath)
-    aliases = JSON.parse(raw.toString("utf8")) as ModelAliasMap
-    consola.info(
-      `Loaded ${Object.keys(aliases).length} model alias(es) from ${CONFIG_FILENAME}`,
-    )
-  } catch {
-    aliases = {}
-    consola.debug(`No ${CONFIG_FILENAME} found, using dynamic matching only`)
-  }
-}
 
 /**
  * Resolve a requested model name to an available model.
@@ -35,10 +14,11 @@ export async function loadModelAliases(): Promise<void> {
  * 4. Passthrough (return original)
  */
 export function resolveModelName(requested: string): string {
-  // 1. Config alias
-  if (aliases[requested]) {
-    logModelResolution(requested, aliases[requested])
-    return aliases[requested]
+  // 1. SQLite alias
+  const aliasedModel = getModelAliasStore().resolveTargetModel(requested)
+  if (aliasedModel !== requested) {
+    logModelResolution(requested, aliasedModel)
+    return aliasedModel
   }
 
   const availableIds =
