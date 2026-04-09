@@ -4,19 +4,14 @@ import { logger } from "hono/logger"
 
 import {
   createModelAlias,
-  createModelMapping,
   getDashboardMetaRepository,
   getModelAliasRepository,
   getModelAliasStore,
-  getModelMappingRepository,
-  getModelMappingStore,
   getRequestLogRepository,
   getRequestSinkConfig,
   reconfigureRequestSink,
   removeModelAlias,
-  removeModelMapping,
   updateModelAlias,
-  updateModelMapping,
 } from "./db/runtime"
 import { honoPrintFn } from "./lib/logger"
 import { completionRoutes } from "./routes/chat-completions/route"
@@ -58,16 +53,11 @@ server.route(
     getRecentRequests: (options) =>
       getRequestLogRepository().getRecentRequests(options),
     countRequests: (filter) => getRequestLogRepository().countRequests(filter),
-    listMappings: () => getModelMappingRepository().list(),
     removeAlias: removeModelAlias,
-    createMapping: createModelMapping,
-    updateMapping: updateModelMapping,
     updateAlias: updateModelAlias,
-    removeMapping: removeModelMapping,
     getTimeSeries: (options) =>
       getRequestLogRepository().getTimeSeries(options),
     getAliasSnapshot: () => getModelAliasStore().getSnapshot(),
-    getMappingSnapshot: () => getModelMappingStore().getSnapshot(),
     getSettings: () => getDashboardMetaRepository().getAll(),
     updateSettings: (entries) => {
       const repo = getDashboardMetaRepository()

@@ -168,10 +168,7 @@ function DashboardContent({
         <RequestLogsPanel allModels={dashboardData.requestModels} />
       ) : null}
       {activeTab === "models" ? (
-        <ModelConfigPanel
-          aliases={aliasesResponse}
-          onChanged={onRefresh}
-        />
+        <ModelConfigPanel aliases={aliasesResponse} onChanged={onRefresh} />
       ) : null}
       {activeTab === "settings" ? <SettingsPanel /> : null}
     </>

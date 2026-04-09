@@ -83,13 +83,16 @@ export function RequestLogsPanel({
       .then((count) => {
         if (!cancelled) setTotal(count)
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setTotal(-2)
+      })
     return () => {
       cancelled = true
     }
   }, [filter])
 
   const countLoaded = total >= 0
+  const countFailed = total === -2
   const totalPages = countLoaded ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : 0
   const safePage = countLoaded ? Math.min(page, totalPages - 1) : page
 
@@ -246,6 +249,8 @@ export function RequestLogsPanel({
             <>
               共 {total} 条{hasFilter ? "（已筛选）" : ""}
             </>
+          ) : countFailed ? (
+            "统计失败"
           ) : (
             "统计中..."
           )}

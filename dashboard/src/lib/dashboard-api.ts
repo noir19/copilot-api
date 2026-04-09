@@ -53,15 +53,6 @@ export interface RecentRequestRow {
   totalTokens: number | null
 }
 
-export interface ModelMappingRecord {
-  createdAt: string
-  displayName: string
-  enabled: boolean
-  id: string
-  sourceModel: string
-  updatedAt: string
-}
-
 export interface ModelAliasRecord {
   createdAt: string
   enabled: boolean
@@ -112,11 +103,6 @@ export interface SettingsResponse {
   }
 }
 
-export interface MappingsResponse {
-  data: Array<ModelMappingRecord>
-  meta: MappingSnapshot
-}
-
 export interface AliasesResponse {
   data: Array<ModelAliasRecord>
   meta: MappingSnapshot
@@ -138,22 +124,10 @@ interface TimeSeriesResponse {
   data: Array<TimeSeriesPoint>
 }
 
-export interface MappingDraft {
-  displayName: string
-  enabled: boolean
-  sourceModel: string
-}
-
 export interface AliasDraft {
   enabled: boolean
   sourceModel: string
   targetModel: string
-}
-
-export const EMPTY_DRAFT: MappingDraft = {
-  displayName: "",
-  enabled: true,
-  sourceModel: "",
 }
 
 export const EMPTY_ALIAS_DRAFT: AliasDraft = {
@@ -233,10 +207,6 @@ export async function loadRequestCount(
   return res.total
 }
 
-export function loadMappings(): Promise<MappingsResponse> {
-  return fetchJson<MappingsResponse>("/api/dashboard/mappings")
-}
-
 export async function loadTimeSeries(
   bucketMinutes: number,
   limit: number,
@@ -249,31 +219,6 @@ export async function loadTimeSeries(
 
 export function loadAliases(): Promise<AliasesResponse> {
   return fetchJson<AliasesResponse>("/api/dashboard/aliases")
-}
-
-export function createMapping(
-  draft: MappingDraft,
-): Promise<ModelMappingRecord> {
-  return fetchJson<ModelMappingRecord>("/api/dashboard/mappings", {
-    body: JSON.stringify(draft),
-    method: "POST",
-  })
-}
-
-export function updateMapping(
-  id: string,
-  draft: MappingDraft,
-): Promise<ModelMappingRecord> {
-  return fetchJson<ModelMappingRecord>(`/api/dashboard/mappings/${id}`, {
-    body: JSON.stringify(draft),
-    method: "PUT",
-  })
-}
-
-export function deleteMapping(id: string): Promise<{ removed: boolean }> {
-  return fetchJson<{ removed: boolean }>(`/api/dashboard/mappings/${id}`, {
-    method: "DELETE",
-  })
 }
 
 export function createAlias(draft: AliasDraft): Promise<ModelAliasRecord> {
