@@ -38,7 +38,6 @@ export function OverviewPanel({ data }: { data: DashboardData }) {
         />
         <MetricCard
           colorIndex={0}
-          description="按已记录 input/output token 和 OpenRouter 官方价目表估算"
           icon={Coins}
           title="OpenRouter 估价"
           value={formatUsd(data.overview.openRouterEstimatedCostUsd)}

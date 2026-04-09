@@ -22,13 +22,11 @@ const ACCENT_COLORS = [
 ] as const
 
 export function MetricCard({
-  description,
   colorIndex = 0,
   icon: Icon,
   title,
   value,
 }: {
-  description?: string
   colorIndex?: number
   icon: LucideIcon
   title: string
@@ -44,9 +42,6 @@ export function MetricCard({
           <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight text-slate-950">
             {value}
           </p>
-          {description ? (
-            <p className="mt-1 text-xs text-slate-500">{description}</p>
-          ) : null}
         </div>
         <div className={`rounded-lg p-2 ${accent.icon}`}>
           <Icon className="h-4 w-4" />
