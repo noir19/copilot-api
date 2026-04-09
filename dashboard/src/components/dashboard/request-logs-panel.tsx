@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useMemo, useState } from "react"
 
-import type { RecentRequestRow } from "../../lib/dashboard-api"
+import type { ModelBreakdownRow, RecentRequestRow } from "../../lib/dashboard-api"
 import { formatTimestamp } from "../../lib/format"
 import { cn } from "../../lib/utils"
 import { Badge } from "../ui/badge"
@@ -21,8 +21,10 @@ const PAGE_SIZE = 20
 
 export function RequestLogsPanel({
   requests,
+  allModels,
 }: {
   requests: Array<RecentRequestRow>
+  allModels: Array<ModelBreakdownRow>
 }) {
   const [filterModel, setFilterModel] = useState("")
   const [filterRoute, setFilterRoute] = useState("")
@@ -33,11 +35,11 @@ export function RequestLogsPanel({
 
   const modelOptions = useMemo(() => {
     const set = new Set<string>()
-    for (const r of requests) {
-      if (r.modelRaw) set.add(r.modelRaw)
+    for (const m of allModels) {
+      if (m.modelRaw) set.add(m.modelRaw)
     }
     return Array.from(set).sort()
-  }, [requests])
+  }, [allModels])
 
   const filtered = useMemo(() => {
     const fromMs = timeFrom ? new Date(timeFrom).getTime() : 0

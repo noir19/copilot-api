@@ -10,7 +10,7 @@ import {
 } from "recharts"
 
 import { loadTimeSeries, type TimeSeriesPoint } from "../../lib/dashboard-api"
-import { formatNumber } from "../../lib/format"
+import { formatCompactNumber, formatNumber } from "../../lib/format"
 import { Button } from "../ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card"
 
@@ -154,9 +154,9 @@ export function RequestTrendCard({
                 <YAxis
                   fontSize={11}
                   stroke="#94a3b8"
-                  tickFormatter={(v: number) => formatNumber(v)}
+                  tickFormatter={(v: number) => formatCompactNumber(v)}
                   tickLine={false}
-                  width={50}
+                  width={45}
                 />
                 <Tooltip
                   contentStyle={{

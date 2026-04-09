@@ -166,7 +166,10 @@ function DashboardContent({
     <>
       {activeTab === "overview" ? <OverviewPanel data={dashboardData} /> : null}
       {activeTab === "logs" ? (
-        <RequestLogsPanel requests={dashboardData.recentRequests} />
+        <RequestLogsPanel
+          requests={dashboardData.recentRequests}
+          allModels={dashboardData.requestModels}
+        />
       ) : null}
       {activeTab === "models" ? (
         <ModelConfigPanel
