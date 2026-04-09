@@ -1,6 +1,7 @@
 export interface RequestOverview {
   averageLatencyMs: number
   errorRate: number
+  openRouterEstimatedCostUsd: number
   successRate: number
   totalRequests: number
   totalTokens: number
@@ -29,9 +30,13 @@ export interface CopilotUsageResponse {
 }
 
 export interface ModelBreakdownRow {
+  inputTokens: number
   lastRequestedAt: string
   modelDisplay: string | null
   modelRaw: string | null
+  openRouterEstimatedCostUsd: number | null
+  openRouterModelId: string | null
+  outputTokens: number
   requestCount: number
   totalTokens: number
 }
@@ -159,7 +164,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
     fetchJson<CopilotUsageResponse>("/api/dashboard/usage"),
     fetchJson<ModelsResponse>("/api/dashboard/models"),
     fetchJson<TimeSeriesResponse>(
-      "/api/dashboard/time-series?bucket=1440&limit=7",
+      "/api/dashboard/time-series?bucket=60&limit=24",
     ),
   ])
 

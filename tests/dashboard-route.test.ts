@@ -85,13 +85,18 @@ function createReadOnlyApp(): Hono {
           errorRate: 10,
           totalTokens: 1234,
           averageLatencyMs: 180,
+          openRouterEstimatedCostUsd: 1.2345,
         })
       },
       getModelBreakdown() {
         return Promise.resolve([
           {
+            inputTokens: 400,
             modelRaw: "claude-sonnet-4-5",
             modelDisplay: "Claude Sonnet",
+            openRouterEstimatedCostUsd: 0.45,
+            openRouterModelId: "anthropic/claude-sonnet-4.5",
+            outputTokens: 600,
             requestCount: 7,
             totalTokens: 1000,
             lastRequestedAt: "2026-04-08T12:00:00.000Z",
@@ -225,6 +230,7 @@ function createMutableMappingsApp(): Hono {
           errorRate: 0,
           totalTokens: 0,
           averageLatencyMs: 0,
+          openRouterEstimatedCostUsd: 0,
         })
       },
       getModelBreakdown() {

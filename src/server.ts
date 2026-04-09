@@ -26,8 +26,14 @@ import { modelRoutes } from "./routes/models/route"
 import { tokenRoute } from "./routes/token/route"
 import { usageRoute } from "./routes/usage/route"
 import { getCopilotUsage } from "./services/github/get-copilot-usage"
+import {
+  createOpenRouterPricingService,
+  estimateOpenRouterCostUsd,
+  roundUsd,
+} from "./services/openrouter/pricing"
 
 export const server = new Hono()
+const openRouterPricing = createOpenRouterPricingService()
 
 server.use(logger(honoPrintFn))
 server.use(cors())
@@ -47,8 +53,54 @@ server.route(
   createDashboardRoute({
     createAlias: createModelAlias,
     getUsage: getCopilotUsage,
-    getOverview: () => getRequestLogRepository().getOverview(),
-    getModelBreakdown: () => getRequestLogRepository().getModelBreakdown(),
+    getOverview: async () => {
+      const repository = getRequestLogRepository()
+      const overview = await repository.getOverview()
+      const breakdown = await repository.getModelBreakdown()
+
+      let totalCostUsd = 0
+      for (const row of breakdown) {
+        const pricing = await openRouterPricing.getPricing(row.modelRaw)
+        if (!pricing) {
+          continue
+        }
+
+        totalCostUsd += estimateOpenRouterCostUsd({
+          inputTokens: row.inputTokens,
+          completionTokens: row.outputTokens,
+          pricing,
+        })
+      }
+
+      return {
+        ...overview,
+        openRouterEstimatedCostUsd: roundUsd(totalCostUsd),
+      }
+    },
+    getModelBreakdown: async () => {
+      const rows = await getRequestLogRepository().getModelBreakdown()
+
+      return Promise.all(
+        rows.map(async (row) => {
+          const pricing = await openRouterPricing.getPricing(row.modelRaw)
+          if (!pricing) {
+            return row
+          }
+
+          return {
+            ...row,
+            openRouterEstimatedCostUsd: roundUsd(
+              estimateOpenRouterCostUsd({
+                inputTokens: row.inputTokens,
+                completionTokens: row.outputTokens,
+                pricing,
+              }),
+            ),
+            openRouterModelId: pricing.modelId,
+          }
+        }),
+      )
+    },
     listAliases: () => getModelAliasRepository().list(),
     getRecentRequests: (options) =>
       getRequestLogRepository().getRecentRequests(options),

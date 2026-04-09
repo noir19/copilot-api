@@ -3,11 +3,11 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
 
 import type { ModelBreakdownRow } from "../../lib/dashboard-api"
 
-import { formatNumber } from "../../lib/format"
+import { formatNumber, formatUsd } from "../../lib/format"
 import { Button } from "../ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card"
 
-type DistributionMetric = "requests" | "tokens"
+type DistributionMetric = "requests" | "tokens" | "cost"
 type DistributionView = "bar" | "donut" | "list"
 
 const CHART_COLORS = [
@@ -29,11 +29,15 @@ export function ModelDistributionCard({
 
   const chartData = requestModels.slice(0, 6).map((item) => ({
     label: item.modelRaw ?? item.modelDisplay ?? "未知模型",
+    cost: item.openRouterEstimatedCostUsd ?? 0,
+    costStatus: item.openRouterEstimatedCostUsd === null ? "missing" : "ready",
+    openRouterModelId: item.openRouterModelId,
     requests: item.requestCount,
     tokens: item.totalTokens,
   }))
 
-  const metricLabel = metric === "requests" ? "请求数" : "Token"
+  const metricLabel =
+    metric === "requests" ? "请求数" : metric === "tokens" ? "Token" : "估价"
   const totalValue = chartData.reduce((sum, item) => sum + item[metric], 0)
 
   return (
@@ -56,6 +60,13 @@ export function ModelDistributionCard({
                 variant={metric === "tokens" ? "default" : "ghost"}
               >
                 Token
+              </Button>
+              <Button
+                onClick={() => setMetric("cost")}
+                size="sm"
+                variant={metric === "cost" ? "default" : "ghost"}
+              >
+                费用
               </Button>
             </div>
             <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
@@ -87,7 +98,9 @@ export function ModelDistributionCard({
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between gap-3 text-sm">
           <p className="font-semibold tabular-nums text-slate-950">
-            {metricLabel} {formatNumber(totalValue)}
+            {metric === "cost"
+              ? `${metricLabel} ${formatUsd(totalValue)}`
+              : `${metricLabel} ${formatNumber(totalValue)}`}
           </p>
           <p className="text-slate-500">Top {chartData.length} 模型</p>
         </div>
@@ -118,7 +131,9 @@ export function ModelDistributionCard({
                       </span>
                     </div>
                     <span className="tabular-nums text-slate-600">
-                      {formatNumber(value)}
+                      {metric === "cost"
+                        ? formatUsd(value)
+                        : formatNumber(value)}
                     </span>
                   </div>
                   <div className="h-3 overflow-hidden rounded-full bg-slate-100">
@@ -189,8 +204,17 @@ export function ModelDistributionCard({
                       </span>
                     </div>
                     <p className="mt-2 text-lg font-semibold text-slate-950">
-                      {formatNumber(value)}
+                      {metric === "cost"
+                        ? formatUsd(value)
+                        : formatNumber(value)}
                     </p>
+                    {metric === "cost" ? (
+                      <p className="mt-1 text-xs text-slate-500">
+                        {item.costStatus === "ready"
+                          ? `按 ${item.openRouterModelId ?? item.label} 官方价估算`
+                          : "暂未匹配到 OpenRouter 价格"}
+                      </p>
+                    ) : null}
                   </div>
                 )
               })}
@@ -220,13 +244,22 @@ export function ModelDistributionCard({
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-semibold text-slate-950">
-                        {formatNumber(value)}
+                        {metric === "cost"
+                          ? formatUsd(value)
+                          : formatNumber(value)}
                       </p>
                       <p className="text-sm text-slate-500">
                         占比 {share.toFixed(1)}%
                       </p>
                     </div>
                   </div>
+                  {metric === "cost" ? (
+                    <p className="mt-2 text-xs text-slate-500">
+                      {item.costStatus === "ready"
+                        ? `按 ${item.openRouterModelId ?? item.label} 官方价估算`
+                        : "暂未匹配到 OpenRouter 价格"}
+                    </p>
+                  ) : null}
                 </div>
               )
             })}

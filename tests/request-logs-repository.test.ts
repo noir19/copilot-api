@@ -65,6 +65,7 @@ describe("request logs repository", () => {
     expect(overview.errorRate).toBe(50)
     expect(overview.totalTokens).toBe(350)
     expect(overview.averageLatencyMs).toBe(210)
+    expect(overview.openRouterEstimatedCostUsd).toBe(0)
   })
 
   test("aggregates requests by display model name", async () => {
@@ -106,7 +107,11 @@ describe("request logs repository", () => {
     expect(models).toHaveLength(1)
     expect(models[0]?.modelDisplay).toBe("Claude Sonnet")
     expect(models[0]?.requestCount).toBe(2)
+    expect(models[0]?.inputTokens).toBe(150)
+    expect(models[0]?.outputTokens).toBe(150)
     expect(models[0]?.totalTokens).toBe(300)
+    expect(models[0]?.openRouterEstimatedCostUsd).toBeNull()
+    expect(models[0]?.openRouterModelId).toBeNull()
   })
 
   test("returns recent requests sorted by newest first", async () => {

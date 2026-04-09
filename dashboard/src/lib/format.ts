@@ -14,6 +14,27 @@ export function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`
 }
 
+export function formatUsd(value: number): string {
+  if (value === 0) {
+    return "$0.00"
+  }
+
+  if (value < 0.0001) {
+    return "<$0.0001"
+  }
+
+  if (value < 1) {
+    return `$${value.toFixed(4)}`
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(value)
+}
+
 export function formatTimestamp(value: string | null): string {
   if (!value) {
     return "从未"

@@ -73,7 +73,7 @@ export function RequestTrendCard({
   initialData: Array<TimeSeriesPoint>
 }) {
   const [metric, setMetric] = useState<TrendMetric>("requests")
-  const [granularity, setGranularity] = useState<Granularity>("week")
+  const [granularity, setGranularity] = useState<Granularity>("day")
   const [data, setData] = useState(initialData)
   const [loading, setLoading] = useState(false)
 
@@ -118,7 +118,7 @@ export function RequestTrendCard({
   }, [])
 
   useEffect(() => {
-    if (granularity === "week") {
+    if (granularity === "day") {
       setData(initialData)
     } else {
       void fetchData(granularity)

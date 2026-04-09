@@ -10,14 +10,19 @@ export interface RequestOverview {
   errorRate: number
   totalTokens: number
   averageLatencyMs: number
+  openRouterEstimatedCostUsd: number
 }
 
 export interface ModelBreakdownRow {
   modelRaw: string | null
   modelDisplay: string | null
   requestCount: number
+  inputTokens: number
+  outputTokens: number
   totalTokens: number
   lastRequestedAt: string
+  openRouterEstimatedCostUsd: number | null
+  openRouterModelId: string | null
 }
 
 export interface RecentRequestRow extends RequestLogRecord {
@@ -43,6 +48,8 @@ interface ModelBreakdownDbRow {
   model_raw: string | null
   model_display: string | null
   request_count: number
+  input_tokens: number
+  output_tokens: number
   total_tokens: number
   last_requested_at: string
 }
@@ -171,6 +178,7 @@ function readOverview(db: Database): RequestOverview {
     errorRate: totalRequests > 0 ? (errorCount / totalRequests) * 100 : 0,
     totalTokens: row?.total_tokens ?? 0,
     averageLatencyMs: Math.round(row?.average_latency_ms ?? 0),
+    openRouterEstimatedCostUsd: 0,
   }
 }
 
@@ -181,6 +189,8 @@ function readModelBreakdown(db: Database): Array<ModelBreakdownRow> {
          model_raw,
          model_display,
          COUNT(*) AS request_count,
+         COALESCE(SUM(input_tokens), 0) AS input_tokens,
+         COALESCE(SUM(output_tokens), 0) AS output_tokens,
          COALESCE(SUM(total_tokens), 0) AS total_tokens,
          MAX(timestamp) AS last_requested_at
        FROM request_logs
@@ -193,8 +203,12 @@ function readModelBreakdown(db: Database): Array<ModelBreakdownRow> {
     modelRaw: row.model_raw,
     modelDisplay: row.model_display,
     requestCount: row.request_count,
+    inputTokens: row.input_tokens,
+    outputTokens: row.output_tokens,
     totalTokens: row.total_tokens,
     lastRequestedAt: row.last_requested_at,
+    openRouterEstimatedCostUsd: null,
+    openRouterModelId: null,
   }))
 }
 

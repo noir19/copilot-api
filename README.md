@@ -396,6 +396,7 @@ The dashboard is now served directly by the proxy and reads real data from:
 Current dashboard tabs:
 
 - **Overview**: real request totals, success/error rates, latency, token totals, Copilot quota cards, model distribution, and request trend chart (day/week/month/year granularity)
+- **Overview**: real request totals, success/error rates, latency, token totals, OpenRouter cost estimate, Copilot quota cards, model distribution, and request trend chart (default hourly / 24h window)
 - **Logs**: server-side paginated request logs with model/route/status/time filtering
 - **Model Aliases**: create, edit, delete, and enable or disable request-path aliases that are persisted in SQLite and reloaded into the in-memory cache
 - **Settings**: log retention policy and async queue configuration
@@ -500,3 +501,4 @@ bun run start
 | Date | Scope | Document |
 |------|-------|----------|
 | 2026-04-09 | Dashboard: trend granularity + cleanup | [20260409-dashboard-trend-granularity-and-cleanup](review/20260409-dashboard-trend-granularity-and-cleanup.md) |
+| 2026-04-09 | Dashboard: hourly trend default + OpenRouter cost estimate | [20260409-dashboard-openrouter-cost-estimate](review/20260409-dashboard-openrouter-cost-estimate.md) |
