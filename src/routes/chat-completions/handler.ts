@@ -6,9 +6,11 @@ import { awaitApproval } from "~/lib/approval"
 import { checkRateLimit } from "~/lib/rate-limit"
 import { enqueueRequestLog } from "~/lib/request-log"
 import { state } from "~/lib/state"
+import { extractCompletionUsage } from "~/lib/stream-usage"
 import { getTokenCount } from "~/lib/tokenizer"
 import { isNullish } from "~/lib/utils"
 import {
+  type ChatCompletionChunk,
   type ChatCompletionResponse,
   type ChatCompletionsPayload,
   createChatCompletions,
@@ -67,19 +69,43 @@ export async function handleCompletion(c: Context) {
       return c.json(response)
     }
 
-    enqueueRequestLog({
-      route: c.req.path,
-      startedAt,
-      model: payload.model,
-      stream: true,
-      responseStatus: 200,
-      accountType: state.accountType,
-    })
     consola.debug("Streaming response")
     return streamSSE(c, async (stream) => {
-      for await (const chunk of response) {
-        consola.debug("Streaming chunk:", JSON.stringify(chunk))
-        await stream.writeSSE(chunk as SSEMessage)
+      let usage: ReturnType<typeof extractCompletionUsage> = null
+
+      try {
+        for await (const chunk of response) {
+          consola.debug("Streaming chunk:", JSON.stringify(chunk))
+
+          if (chunk.data && chunk.data !== "[DONE]") {
+            const parsedChunk = JSON.parse(chunk.data) as ChatCompletionChunk
+            usage = extractCompletionUsage(parsedChunk) ?? usage
+          }
+
+          await stream.writeSSE(chunk as SSEMessage)
+        }
+
+        enqueueRequestLog({
+          route: c.req.path,
+          startedAt,
+          model: payload.model,
+          stream: true,
+          responseStatus: 200,
+          inputTokens: usage?.promptTokens ?? null,
+          outputTokens: usage?.completionTokens ?? null,
+          totalTokens: usage?.totalTokens ?? null,
+          accountType: state.accountType,
+        })
+      } catch (error) {
+        enqueueRequestLog({
+          route: c.req.path,
+          startedAt,
+          model: payload.model,
+          stream: true,
+          error,
+          accountType: state.accountType,
+        })
+        throw error
       }
     })
   } catch (error) {

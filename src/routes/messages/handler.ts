@@ -6,6 +6,7 @@ import { awaitApproval } from "~/lib/approval"
 import { checkRateLimit } from "~/lib/rate-limit"
 import { enqueueRequestLog } from "~/lib/request-log"
 import { state } from "~/lib/state"
+import { extractCompletionUsage } from "~/lib/stream-usage"
 import {
   type ChatCompletionChunk,
   type ChatCompletionResponse,
@@ -66,14 +67,6 @@ export async function handleCompletion(c: Context) {
       return c.json(anthropicResponse)
     }
 
-    enqueueRequestLog({
-      route: c.req.path,
-      startedAt,
-      model: openAIPayload.model,
-      stream: true,
-      responseStatus: 200,
-      accountType: state.accountType,
-    })
     consola.debug("Streaming response from Copilot")
     return streamSSE(c, async (stream) => {
       const streamState: AnthropicStreamState = {
@@ -82,27 +75,53 @@ export async function handleCompletion(c: Context) {
         contentBlockOpen: false,
         toolCalls: {},
       }
+      let usage: ReturnType<typeof extractCompletionUsage> = null
 
-      for await (const rawEvent of response) {
-        consola.debug("Copilot raw stream event:", JSON.stringify(rawEvent))
-        if (rawEvent.data === "[DONE]") {
-          break
+      try {
+        for await (const rawEvent of response) {
+          consola.debug("Copilot raw stream event:", JSON.stringify(rawEvent))
+          if (rawEvent.data === "[DONE]") {
+            break
+          }
+
+          if (!rawEvent.data) {
+            continue
+          }
+
+          const chunk = JSON.parse(rawEvent.data) as ChatCompletionChunk
+          usage = extractCompletionUsage(chunk) ?? usage
+          const events = translateChunkToAnthropicEvents(chunk, streamState)
+
+          for (const event of events) {
+            consola.debug("Translated Anthropic event:", JSON.stringify(event))
+            await stream.writeSSE({
+              event: event.type,
+              data: JSON.stringify(event),
+            })
+          }
         }
 
-        if (!rawEvent.data) {
-          continue
-        }
-
-        const chunk = JSON.parse(rawEvent.data) as ChatCompletionChunk
-        const events = translateChunkToAnthropicEvents(chunk, streamState)
-
-        for (const event of events) {
-          consola.debug("Translated Anthropic event:", JSON.stringify(event))
-          await stream.writeSSE({
-            event: event.type,
-            data: JSON.stringify(event),
-          })
-        }
+        enqueueRequestLog({
+          route: c.req.path,
+          startedAt,
+          model: openAIPayload.model,
+          stream: true,
+          responseStatus: 200,
+          inputTokens: usage?.promptTokens ?? null,
+          outputTokens: usage?.completionTokens ?? null,
+          totalTokens: usage?.totalTokens ?? null,
+          accountType: state.accountType,
+        })
+      } catch (error) {
+        enqueueRequestLog({
+          route: c.req.path,
+          startedAt,
+          model: openAIPayload.model,
+          stream: true,
+          error,
+          accountType: state.accountType,
+        })
+        throw error
       }
     })
   } catch (error) {
