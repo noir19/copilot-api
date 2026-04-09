@@ -42,12 +42,24 @@ export async function handleCompletion(c: Context) {
 
   if (state.manualApprove) await awaitApproval()
 
+  // GPT-5 series requires max_completion_tokens instead of max_tokens
+  const usesCompletionTokens = payload.model.toLowerCase().startsWith("gpt-5")
+
   if (isNullish(payload.max_tokens)) {
+    const limit = selectedModel?.capabilities.limits.max_output_tokens
+    if (usesCompletionTokens) {
+      payload = { ...payload, max_completion_tokens: limit }
+    } else {
+      payload = { ...payload, max_tokens: limit }
+    }
+    consola.debug("Set token limit to:", limit)
+  } else if (usesCompletionTokens) {
+    // Translate max_tokens → max_completion_tokens for GPT-5
     payload = {
       ...payload,
-      max_tokens: selectedModel?.capabilities.limits.max_output_tokens,
+      max_completion_tokens: payload.max_tokens,
+      max_tokens: undefined,
     }
-    consola.debug("Set max_tokens to:", JSON.stringify(payload.max_tokens))
   }
 
   try {
