@@ -8,8 +8,8 @@ import {
   EMPTY_ALIAS_DRAFT,
   loadSettings,
   type ModelAliasRecord,
-  saveSettings,
   type SupportedModel,
+  saveSettings,
   updateAlias,
 } from "../../lib/dashboard-api"
 import { formatTimestamp } from "../../lib/format"
@@ -59,17 +59,14 @@ export function ModelAliasesPanel({
       .catch(() => {})
   }, [])
 
-  const toggleDashToDot = useCallback(
-    async (enabled: boolean) => {
-      setDashToDotEnabled(enabled)
-      try {
-        await saveSettings({ dash_to_dot_enabled: enabled ? "true" : "false" })
-      } catch {
-        setDashToDotEnabled(!enabled)
-      }
-    },
-    [],
-  )
+  const toggleDashToDot = useCallback(async (enabled: boolean) => {
+    setDashToDotEnabled(enabled)
+    try {
+      await saveSettings({ dash_to_dot_enabled: enabled ? "true" : "false" })
+    } catch {
+      setDashToDotEnabled(!enabled)
+    }
+  }, [])
 
   async function withRefresh(action: () => Promise<void>) {
     setError(null)
@@ -133,8 +130,7 @@ export function ModelAliasesPanel({
           </label>
           <p className="mt-2 text-xs text-slate-500">
             启用后，请求模型名中的短横线会自动匹配可用模型的点号版本（如
-            claude-sonnet-4-6 → claude-sonnet-4.6）。
-            关闭后需手动添加别名。
+            claude-sonnet-4-6 → claude-sonnet-4.6）。 关闭后需手动添加别名。
           </p>
         </CardContent>
       </Card>

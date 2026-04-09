@@ -244,7 +244,9 @@ export function RequestTrendCard({
                       : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
                   )}
                   onClick={() => setMetric(key)}
-                  style={metric === key ? { backgroundColor: cfg.color } : undefined}
+                  style={
+                    metric === key ? { backgroundColor: cfg.color } : undefined
+                  }
                   type="button"
                 >
                   {cfg.label}

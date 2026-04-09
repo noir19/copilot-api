@@ -462,7 +462,12 @@ export function createRequestLogRepository(db: Database) {
       timeFrom?: string
     }): Promise<Array<TimeSeriesPoint>> {
       return Promise.resolve(
-        readTimeSeries(db, options.bucketMinutes, options.limit, options.timeFrom),
+        readTimeSeries(
+          db,
+          options.bucketMinutes,
+          options.limit,
+          options.timeFrom,
+        ),
       )
     },
   }
