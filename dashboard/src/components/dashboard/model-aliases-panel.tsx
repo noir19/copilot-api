@@ -357,7 +357,7 @@ export function ModelAliasesPanel({
               还没有拿到支持模型列表。
             </div>
           ) : (
-            <div className="grid gap-3 xl:grid-cols-2">
+            <div className="grid gap-3 xl:grid-cols-3">
               {supportedModels.map((model) => (
                 <div
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
