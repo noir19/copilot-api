@@ -53,7 +53,7 @@ export function ModelDistributionCard({
   const totalValue = chartData.reduce((sum, item) => sum + item[metric], 0)
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-1">
@@ -105,7 +105,7 @@ export function ModelDistributionCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="flex h-full flex-col space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
@@ -124,7 +124,7 @@ export function ModelDistributionCard({
             还没有请求数据。
           </div>
         ) : view === "bar" ? (
-          <div className="h-[320px]">
+          <div className="h-[320px] flex-1">
             <ResponsiveContainer height="100%" width="100%">
               <BarChart
                 barCategoryGap={18}
@@ -208,7 +208,7 @@ export function ModelDistributionCard({
             </div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="flex-1 space-y-3">
             {chartData.map((item, index) => {
               const value = item[metric]
               const share = totalValue === 0 ? 0 : (value / totalValue) * 100
