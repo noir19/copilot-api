@@ -11,6 +11,7 @@ import {
 
 import { loadTimeSeries, type TimeSeriesPoint } from "../../lib/dashboard-api"
 import { formatCompactNumber, formatNumber } from "../../lib/format"
+import { cn } from "../../lib/utils"
 import { Button } from "../ui/button"
 import {
   Card,
@@ -192,8 +193,8 @@ export function RequestTrendCard({
               消耗和错误密度。趋势图会补齐空桶，避免把无请求时段压缩掉。
             </CardDescription>
           </div>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center">
               <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
                 <Button
                   onClick={() => setWindowMode("rolling")}
@@ -210,7 +211,7 @@ export function RequestTrendCard({
                   自然
                 </Button>
               </div>
-              <span className="h-4 w-px bg-slate-300" />
+              <span className="mx-2 h-5 w-px bg-slate-200" />
               <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
                 {(
                   Object.entries(GRANULARITY_CONFIG) as Array<
@@ -228,20 +229,26 @@ export function RequestTrendCard({
                 ))}
               </div>
             </div>
-            <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5 self-start">
+            <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
               {(
                 Object.entries(METRIC_CONFIG) as Array<
                   [TrendMetric, (typeof METRIC_CONFIG)[TrendMetric]]
                 >
               ).map(([key, cfg]) => (
-                <Button
+                <button
                   key={key}
+                  className={cn(
+                    "rounded-md px-3 h-9 text-sm font-medium transition-colors",
+                    metric === key
+                      ? "text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                  )}
                   onClick={() => setMetric(key)}
-                  size="sm"
-                  variant={metric === key ? "default" : "ghost"}
+                  style={metric === key ? { backgroundColor: cfg.color } : undefined}
+                  type="button"
                 >
                   {cfg.label}
-                </Button>
+                </button>
               ))}
             </div>
           </div>
