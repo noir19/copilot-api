@@ -12,7 +12,9 @@ import type {
   ModelBreakdownRow,
   RecentRequestRow,
   RequestOverview,
+  TimeSeriesPoint,
 } from "~/db/request-logs"
+import type { RequestSinkConfig } from "~/db/request-sink"
 import type { ModelAliasRecord } from "~/lib/model-alias-store"
 import type { ModelMappingRecord } from "~/lib/model-mapping-store"
 import type { CopilotUsageResponse } from "~/services/github/get-copilot-usage"
@@ -39,6 +41,10 @@ interface DashboardRouteDeps {
     input: UpdateModelAliasInput,
   ): Promise<ModelAliasRecord>
   removeMapping(id: string): Promise<boolean>
+  getTimeSeries(options: {
+    bucketMinutes: number
+    limit: number
+  }): Promise<Array<TimeSeriesPoint>>
   getAliasSnapshot(): {
     version: number
     count: number
@@ -53,6 +59,10 @@ interface DashboardRouteDeps {
     loadedAt: string | null
     updatedAt: string | null
   }
+  getSettings(): Record<string, string>
+  updateSettings(entries: Record<string, string>): void
+  reconfigureSink(patch: Partial<RequestSinkConfig>): void
+  getSinkConfig(): RequestSinkConfig
 }
 
 export function createDashboardRoute(deps: DashboardRouteDeps) {
@@ -78,6 +88,13 @@ export function createDashboardRoute(deps: DashboardRouteDeps) {
     const offset = Number.parseInt(c.req.query("offset") ?? "0", 10)
     const data = await deps.getRecentRequests({ limit, offset })
     return c.json({ data, limit, offset })
+  })
+
+  route.get("/time-series", async (c) => {
+    const bucketMinutes = Number.parseInt(c.req.query("bucket") ?? "60", 10)
+    const limit = Number.parseInt(c.req.query("limit") ?? "168", 10)
+    const data = await deps.getTimeSeries({ bucketMinutes, limit })
+    return c.json({ data })
   })
 
   route.get("/mappings", async (c) => {
@@ -130,6 +147,42 @@ export function createDashboardRoute(deps: DashboardRouteDeps) {
   route.delete("/aliases/:id", async (c) => {
     const removed = await deps.removeAlias(c.req.param("id"))
     return c.json({ removed })
+  })
+
+  route.get("/settings", (c) => {
+    return c.json({
+      settings: deps.getSettings(),
+      sinkConfig: deps.getSinkConfig(),
+    })
+  })
+
+  route.post("/settings", async (c) => {
+    const { entries } = await c.req.json<{ entries: Record<string, string> }>()
+    deps.updateSettings(entries)
+
+    const sinkPatch: Partial<RequestSinkConfig> = {}
+    const sinkKeyMap: Record<string, keyof RequestSinkConfig> = {
+      sink_flush_interval_ms: "flushIntervalMs",
+      sink_batch_size: "batchSize",
+      sink_max_queue_size: "maxQueueSize",
+      sink_max_retry_attempts: "maxRetryAttempts",
+      sink_retry_window_ms: "retryWindowMs",
+    }
+
+    for (const [metaKey, configKey] of Object.entries(sinkKeyMap)) {
+      if (entries[metaKey] !== undefined) {
+        const parsed = Number.parseInt(entries[metaKey], 10)
+        if (Number.isFinite(parsed) && parsed > 0) {
+          ;(sinkPatch as Record<string, number>)[configKey] = parsed
+        }
+      }
+    }
+
+    if (Object.keys(sinkPatch).length > 0) {
+      deps.reconfigureSink(sinkPatch)
+    }
+
+    return c.json({ ok: true })
   })
 
   return route

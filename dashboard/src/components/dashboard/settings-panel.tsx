@@ -1,222 +1,209 @@
-import {
-  AlertCircle,
-  Database,
-  FileDown,
-  KeyRound,
-  TimerReset,
-} from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
 
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../ui/card"
+  loadSettings,
+  type SettingsResponse,
+  saveSettings,
+} from "../../lib/dashboard-api"
+import { Button } from "../ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card"
 import { Input } from "../ui/input"
-import { Textarea } from "../ui/textarea"
 
-function PlaceholderConfigCard({
-  children,
-  description,
-  icon: Icon,
-  title,
+interface SettingsForm {
+  retentionMonths: string
+  sinkFlushIntervalMs: string
+  sinkBatchSize: string
+  sinkMaxQueueSize: string
+  sinkMaxRetryAttempts: string
+  sinkRetryWindowMs: string
+}
+
+const DEFAULTS: SettingsForm = {
+  retentionMonths: "2",
+  sinkFlushIntervalMs: "500",
+  sinkBatchSize: "100",
+  sinkMaxQueueSize: "10000",
+  sinkMaxRetryAttempts: "5",
+  sinkRetryWindowMs: "120000",
+}
+
+function toForm(data: SettingsResponse): SettingsForm {
+  const s = data.settings
+  const c = data.sinkConfig
+  return {
+    retentionMonths: s.retention_months ?? DEFAULTS.retentionMonths,
+    sinkFlushIntervalMs: s.sink_flush_interval_ms ?? String(c.flushIntervalMs),
+    sinkBatchSize: s.sink_batch_size ?? String(c.batchSize),
+    sinkMaxQueueSize: s.sink_max_queue_size ?? String(c.maxQueueSize),
+    sinkMaxRetryAttempts:
+      s.sink_max_retry_attempts ?? String(c.maxRetryAttempts),
+    sinkRetryWindowMs: s.sink_retry_window_ms ?? String(c.retryWindowMs),
+  }
+}
+
+function toEntries(form: SettingsForm): Record<string, string> {
+  return {
+    retention_months: form.retentionMonths,
+    sink_flush_interval_ms: form.sinkFlushIntervalMs,
+    sink_batch_size: form.sinkBatchSize,
+    sink_max_queue_size: form.sinkMaxQueueSize,
+    sink_max_retry_attempts: form.sinkMaxRetryAttempts,
+    sink_retry_window_ms: form.sinkRetryWindowMs,
+  }
+}
+
+function FieldRow({
+  htmlFor,
+  label,
+  suffix,
+  value,
+  onChange,
 }: {
-  children: React.ReactNode
-  description: string
-  icon: typeof AlertCircle
-  title: string
+  htmlFor: string
+  label: string
+  suffix?: string
+  value: string
+  onChange: (value: string) => void
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-start gap-3">
-        <div className="rounded-xl bg-slate-900 p-2 text-slate-50">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div className="space-y-1">
-          <p className="font-medium text-slate-900">{title}</p>
-          <p className="text-sm leading-6 text-slate-600">{description}</p>
-        </div>
+    <div className="space-y-1.5">
+      <label className="text-sm font-medium text-slate-700" htmlFor={htmlFor}>
+        {label}
+      </label>
+      <div className="flex items-center gap-2">
+        <Input
+          className="h-8 tabular-nums"
+          id={htmlFor}
+          onChange={(e) => onChange(e.target.value)}
+          type="number"
+          min="1"
+          value={value}
+        />
+        {suffix ? (
+          <span className="shrink-0 text-xs text-slate-500">{suffix}</span>
+        ) : null}
       </div>
-      <div className="space-y-4">{children}</div>
     </div>
   )
 }
 
 export function SettingsPanel() {
+  const [form, setForm] = useState<SettingsForm>(DEFAULTS)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await loadSettings()
+      setForm(toForm(data))
+    } catch {
+      setMessage("加载配置失败")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const update = (key: keyof SettingsForm) => (value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }))
+    setMessage(null)
+  }
+
+  const handleSave = async () => {
+    try {
+      setSaving(true)
+      await saveSettings(toEntries(form))
+      setMessage("配置已保存")
+    } catch {
+      setMessage("保存失败")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-40 items-center justify-center text-sm text-slate-500">
+        加载配置中...
+      </div>
+    )
+  }
+
   return (
-    <Card className="overflow-hidden">
-      <CardHeader>
-        <CardTitle>更多设置</CardTitle>
-        <CardDescription>
-          当前只有模型别名和展示映射接入了真实后端，其他控制项仍然是占位。
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6 bg-slate-50/70">
-        <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-5">
-          <div className="flex items-start gap-3">
-            <div className="rounded-xl bg-amber-500 p-2 text-white">
-              <AlertCircle className="h-4 w-4" />
-            </div>
-            <div className="space-y-2">
-              <p className="font-medium text-slate-900">预留配置区域</p>
-              <p className="max-w-3xl text-sm leading-6 text-slate-700">
-                这里先展示后续准备接入的配置项形态，避免只剩一整片空白占位。当前这些卡片仍然是只读假数据，真正可写的配置暂时只有“模型别名”和“展示映射”。
-              </p>
-            </div>
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">日志保留策略</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <FieldRow
+            htmlFor="retention-months"
+            label="保留月数"
+            suffix="个自然月"
+            value={form.retentionMonths}
+            onChange={update("retentionMonths")}
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            每月1日清理，保留当前月及之前N个完整自然月的日志。
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">异步队列参数</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FieldRow
+              htmlFor="sink-flush-interval"
+              label="刷新间隔"
+              suffix="ms"
+              value={form.sinkFlushIntervalMs}
+              onChange={update("sinkFlushIntervalMs")}
+            />
+            <FieldRow
+              htmlFor="sink-batch-size"
+              label="批次大小"
+              value={form.sinkBatchSize}
+              onChange={update("sinkBatchSize")}
+            />
+            <FieldRow
+              htmlFor="sink-max-queue"
+              label="最大队列长度"
+              value={form.sinkMaxQueueSize}
+              onChange={update("sinkMaxQueueSize")}
+            />
+            <FieldRow
+              htmlFor="sink-max-retry"
+              label="最大重试次数"
+              value={form.sinkMaxRetryAttempts}
+              onChange={update("sinkMaxRetryAttempts")}
+            />
           </div>
-        </div>
+          <FieldRow
+            htmlFor="sink-retry-window"
+            label="重试窗口"
+            suffix="ms"
+            value={form.sinkRetryWindowMs}
+            onChange={update("sinkRetryWindowMs")}
+          />
+        </CardContent>
+      </Card>
 
-        <div className="grid gap-5 xl:grid-cols-2">
-          <PlaceholderConfigCard
-            description="用于展示后续 Token 文件路径、热重载与认证来源的配置形态。"
-            icon={KeyRound}
-            title="Token 与认证"
-          >
-            <div className="space-y-2">
-              <label
-                className="text-sm font-medium text-slate-700"
-                htmlFor="settings-gh-token-file"
-              >
-                GitHub Token 文件
-              </label>
-              <Input
-                disabled
-                id="settings-gh-token-file"
-                value="/root/.local/share/copilot-api/github_token"
-              />
-            </div>
-            <div className="space-y-2">
-              <label
-                className="text-sm font-medium text-slate-700"
-                htmlFor="settings-token-policy"
-              >
-                热重载策略
-              </label>
-              <Input
-                disabled
-                id="settings-token-policy"
-                value="文件变更后自动 reload 并刷新 Copilot token"
-              />
-            </div>
-          </PlaceholderConfigCard>
-
-          <PlaceholderConfigCard
-            description="用于展示请求日志保留窗口、清理频率与数据库位置等未来配置。"
-            icon={Database}
-            title="日志与 SQLite"
-          >
-            <div className="space-y-2">
-              <label
-                className="text-sm font-medium text-slate-700"
-                htmlFor="settings-db-path"
-              >
-                SQLite 路径
-              </label>
-              <Input
-                disabled
-                id="settings-db-path"
-                value="/root/.local/share/copilot-api/copilot-api.db"
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label
-                  className="text-sm font-medium text-slate-700"
-                  htmlFor="settings-retention-days"
-                >
-                  日志保留天数
-                </label>
-                <Input disabled id="settings-retention-days" value="15" />
-              </div>
-              <div className="space-y-2">
-                <label
-                  className="text-sm font-medium text-slate-700"
-                  htmlFor="settings-cleanup-interval"
-                >
-                  清理间隔
-                </label>
-                <Input
-                  disabled
-                  id="settings-cleanup-interval"
-                  value="21600000 ms"
-                />
-              </div>
-            </div>
-          </PlaceholderConfigCard>
-
-          <PlaceholderConfigCard
-            description="用于展示异步写库队列和失败重试窗口等运行时参数。"
-            icon={TimerReset}
-            title="异步队列"
-          >
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-2">
-                <label
-                  className="text-sm font-medium text-slate-700"
-                  htmlFor="settings-flush-interval"
-                >
-                  Flush 间隔
-                </label>
-                <Input disabled id="settings-flush-interval" value="500 ms" />
-              </div>
-              <div className="space-y-2">
-                <label
-                  className="text-sm font-medium text-slate-700"
-                  htmlFor="settings-batch-size"
-                >
-                  批量大小
-                </label>
-                <Input disabled id="settings-batch-size" value="100" />
-              </div>
-              <div className="space-y-2">
-                <label
-                  className="text-sm font-medium text-slate-700"
-                  htmlFor="settings-retry-window"
-                >
-                  重试窗口
-                </label>
-                <Input disabled id="settings-retry-window" value="120000 ms" />
-              </div>
-            </div>
-            <Textarea
-              className="min-h-32"
-              disabled
-              value="后续可以在这里补充 dropped count、当前队列深度、最近一次 flush 错误与背压策略。现在先用只读卡片把未来配置结构固定下来。"
-            />
-          </PlaceholderConfigCard>
-
-          <PlaceholderConfigCard
-            description="用于展示请求日志导出、诊断包与排障辅助功能的预留交互。"
-            icon={FileDown}
-            title="导出与排障"
-          >
-            <div className="space-y-2">
-              <label
-                className="text-sm font-medium text-slate-700"
-                htmlFor="settings-export-format"
-              >
-                导出格式
-              </label>
-              <Input
-                disabled
-                id="settings-export-format"
-                value="JSON Lines / CSV / SQLite Snapshot"
-              />
-            </div>
-            <Textarea
-              className="min-h-40"
-              disabled
-              value="预留说明：
-1. 可导出最近 24 小时请求日志
-2. 可按模型、状态码、路由筛选
-3. 可生成最小诊断包，便于容器排障
-
-这些能力当前还没有接后端，只做页面占位。"
-            />
-          </PlaceholderConfigCard>
-        </div>
-      </CardContent>
-    </Card>
+      <div className="flex items-center justify-end gap-3 xl:col-span-2">
+        {message ? (
+          <span className="text-sm text-slate-600">{message}</span>
+        ) : null}
+        <Button disabled={saving} onClick={handleSave}>
+          {saving ? "保存中..." : "保存配置"}
+        </Button>
+      </div>
+    </div>
   )
 }

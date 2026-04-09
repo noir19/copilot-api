@@ -5,11 +5,14 @@ import { logger } from "hono/logger"
 import {
   createModelAlias,
   createModelMapping,
+  getDashboardMetaRepository,
   getModelAliasRepository,
   getModelAliasStore,
   getModelMappingRepository,
   getModelMappingStore,
   getRequestLogRepository,
+  getRequestSinkConfig,
+  reconfigureRequestSink,
   removeModelAlias,
   removeModelMapping,
   updateModelAlias,
@@ -60,8 +63,19 @@ server.route(
     updateMapping: updateModelMapping,
     updateAlias: updateModelAlias,
     removeMapping: removeModelMapping,
+    getTimeSeries: (options) =>
+      getRequestLogRepository().getTimeSeries(options),
     getAliasSnapshot: () => getModelAliasStore().getSnapshot(),
     getMappingSnapshot: () => getModelMappingStore().getSnapshot(),
+    getSettings: () => getDashboardMetaRepository().getAll(),
+    updateSettings: (entries) => {
+      const repo = getDashboardMetaRepository()
+      for (const [key, value] of Object.entries(entries)) {
+        repo.set(key, value)
+      }
+    },
+    reconfigureSink: reconfigureRequestSink,
+    getSinkConfig: getRequestSinkConfig,
   }),
 )
 

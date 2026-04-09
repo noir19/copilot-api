@@ -42,3 +42,12 @@ export function getRequestLogRetentionCutoff(
   const retentionMs = retentionDays * 24 * 60 * 60 * 1000
   return new Date(now.getTime() - retentionMs).toISOString()
 }
+
+export function getMonthlyRetentionCutoff(
+  now: Date,
+  retainMonths: number,
+): string {
+  const year = now.getUTCFullYear()
+  const month = now.getUTCMonth()
+  return new Date(Date.UTC(year, month - retainMonths, 1)).toISOString()
+}

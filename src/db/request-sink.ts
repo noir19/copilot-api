@@ -75,12 +75,10 @@ function recalculateRetrying(retryQueue: Array<PendingBatch>): number {
 function shouldDropBatch(
   batch: PendingBatch,
   clock: RequestSinkClock,
-  options: RequestSinkOptions,
+  cfg: Pick<RequestSinkConfig, "maxRetryAttempts" | "retryWindowMs">,
 ): boolean {
   const ageMs = clock.now() - batch.firstQueuedAt
-  return (
-    batch.attempts >= options.maxRetryAttempts || ageMs > options.retryWindowMs
-  )
+  return batch.attempts >= cfg.maxRetryAttempts || ageMs > cfg.retryWindowMs
 }
 
 async function flushBatch(
@@ -106,11 +104,27 @@ async function flushBatch(
   }
 }
 
+export type RequestSinkConfig = Pick<
+  RequestSinkOptions,
+  | "flushIntervalMs"
+  | "batchSize"
+  | "maxQueueSize"
+  | "maxRetryAttempts"
+  | "retryWindowMs"
+>
+
 export function createRequestSink(options: RequestSinkOptions) {
   const clock = options.clock ?? defaultClock
   const timers = defaultTimers
   const writeBatch = (records: Array<RequestLogRecord>) =>
     options.writeBatch(records)
+  const config: RequestSinkConfig = {
+    flushIntervalMs: options.flushIntervalMs,
+    batchSize: options.batchSize,
+    maxQueueSize: options.maxQueueSize,
+    maxRetryAttempts: options.maxRetryAttempts,
+    retryWindowMs: options.retryWindowMs,
+  }
   const queue: Array<RequestLogRecord> = []
   const retryQueue: Array<PendingBatch> = []
   const metrics: RequestSinkMetrics = {
@@ -120,7 +134,7 @@ export function createRequestSink(options: RequestSinkOptions) {
   }
 
   const trimQueue = () => {
-    while (queue.length > options.maxQueueSize) {
+    while (queue.length > config.maxQueueSize) {
       queue.shift()
       metrics.dropped += 1
     }
@@ -140,7 +154,7 @@ export function createRequestSink(options: RequestSinkOptions) {
   }
 
   const flushNow = async () => {
-    const records = queue.splice(0, options.batchSize)
+    const records = queue.splice(0, config.batchSize)
     metrics.queued = queue.length
     const failedBatch = await flushBatch(records, writeBatch, clock)
     if (failedBatch) {
@@ -152,7 +166,7 @@ export function createRequestSink(options: RequestSinkOptions) {
     const pending = retryQueue.splice(0)
 
     for (const batch of pending) {
-      if (shouldDropBatch(batch, clock, options)) {
+      if (shouldDropBatch(batch, clock, config)) {
         metrics.dropped += batch.records.length
         continue
       }
@@ -165,7 +179,7 @@ export function createRequestSink(options: RequestSinkOptions) {
       try {
         await writeBatch(batch.records)
       } catch {
-        if (shouldDropBatch(nextBatch, clock, options)) {
+        if (shouldDropBatch(nextBatch, clock, config)) {
           metrics.dropped += nextBatch.records.length
         } else {
           retryQueue.push(nextBatch)
@@ -184,7 +198,7 @@ export function createRequestSink(options: RequestSinkOptions) {
     flushTimer = timers.setInterval(() => {
       void flush()
       void retry()
-    }, options.flushIntervalMs)
+    }, config.flushIntervalMs)
   }
 
   const stop = () => {
@@ -211,6 +225,19 @@ export function createRequestSink(options: RequestSinkOptions) {
     retryFailed,
     getMetrics,
     getSnapshot,
+    getConfig(): RequestSinkConfig {
+      return { ...config }
+    },
+    reconfigure(patch: Partial<RequestSinkConfig>) {
+      const restartTimer =
+        patch.flushIntervalMs !== undefined &&
+        patch.flushIntervalMs !== config.flushIntervalMs
+      Object.assign(config, patch)
+      if (restartTimer && flushTimer) {
+        stop()
+        start(flushNow, retryFailed)
+      }
+    },
     start() {
       start(flushNow, retryFailed)
     },

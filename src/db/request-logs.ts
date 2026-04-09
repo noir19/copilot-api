@@ -24,6 +24,13 @@ export interface RecentRequestRow extends RequestLogRecord {
   id: string
 }
 
+export interface TimeSeriesPoint {
+  bucket: string
+  requests: number
+  tokens: number
+  errors: number
+}
+
 interface OverviewRow {
   total_requests: number
   success_count: number
@@ -221,6 +228,42 @@ function readRecentRequests(
   return rows.map((row) => toRecentRequest(row))
 }
 
+interface TimeSeriesDbRow {
+  bucket: string
+  requests: number
+  tokens: number
+  errors: number
+}
+
+function getBucketFormat(bucketMinutes: number): string {
+  if (bucketMinutes >= 1440) return "%Y-%m-%dT00:00:00Z"
+  if (bucketMinutes >= 60) return "%Y-%m-%dT%H:00:00Z"
+  return "%Y-%m-%dT%H:%M:00Z"
+}
+
+function readTimeSeries(
+  db: Database,
+  bucketMinutes: number,
+  limit: number,
+): Array<TimeSeriesPoint> {
+  const format = getBucketFormat(bucketMinutes)
+  const rows = db
+    .query<TimeSeriesDbRow, [number]>(
+      `SELECT
+         strftime('${format}', timestamp) AS bucket,
+         COUNT(*) AS requests,
+         COALESCE(SUM(total_tokens), 0) AS tokens,
+         SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS errors
+       FROM request_logs
+       GROUP BY bucket
+       ORDER BY bucket DESC
+       LIMIT ?1`,
+    )
+    .all(limit)
+
+  return rows.reverse()
+}
+
 export function createRequestLogRepository(db: Database) {
   return {
     insertBatch(records: Array<RequestLogRecord>): Promise<void> {
@@ -253,6 +296,15 @@ export function createRequestLogRepository(db: Database) {
         .run(cutoff)
 
       return Promise.resolve(result.changes)
+    },
+
+    getTimeSeries(options: {
+      bucketMinutes: number
+      limit: number
+    }): Promise<Array<TimeSeriesPoint>> {
+      return Promise.resolve(
+        readTimeSeries(db, options.bucketMinutes, options.limit),
+      )
     },
   }
 }

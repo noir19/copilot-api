@@ -83,7 +83,26 @@ export interface DashboardData {
   overview: RequestOverview
   recentRequests: Array<RecentRequestRow>
   requestModels: Array<ModelBreakdownRow>
+  timeSeries: Array<TimeSeriesPoint>
   usage: CopilotUsageResponse
+}
+
+export interface TimeSeriesPoint {
+  bucket: string
+  requests: number
+  tokens: number
+  errors: number
+}
+
+export interface SettingsResponse {
+  settings: Record<string, string>
+  sinkConfig: {
+    flushIntervalMs: number
+    batchSize: number
+    maxQueueSize: number
+    maxRetryAttempts: number
+    retryWindowMs: number
+  }
 }
 
 export interface MappingsResponse {
@@ -102,6 +121,10 @@ interface RequestsResponse {
 
 interface ModelsResponse {
   data: Array<ModelBreakdownRow>
+}
+
+interface TimeSeriesResponse {
+  data: Array<TimeSeriesPoint>
 }
 
 export interface MappingDraft {
@@ -146,23 +169,37 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {
-  const [overview, usage, models, requests] = await Promise.all([
+  const [overview, usage, models, requests, timeSeries] = await Promise.all([
     fetchJson<RequestOverview>("/api/dashboard/overview"),
     fetchJson<CopilotUsageResponse>("/api/dashboard/usage"),
     fetchJson<ModelsResponse>("/api/dashboard/models"),
     fetchJson<RequestsResponse>("/api/dashboard/requests?limit=100"),
+    fetchJson<TimeSeriesResponse>(
+      "/api/dashboard/time-series?bucket=60&limit=168",
+    ),
   ])
 
   return {
     overview,
     recentRequests: requests.data,
     requestModels: models.data,
+    timeSeries: timeSeries.data,
     usage,
   }
 }
 
 export function loadMappings(): Promise<MappingsResponse> {
   return fetchJson<MappingsResponse>("/api/dashboard/mappings")
+}
+
+export async function loadTimeSeries(
+  bucketMinutes: number,
+  limit: number,
+): Promise<Array<TimeSeriesPoint>> {
+  const res = await fetchJson<TimeSeriesResponse>(
+    `/api/dashboard/time-series?bucket=${bucketMinutes}&limit=${limit}`,
+  )
+  return res.data
 }
 
 export function loadAliases(): Promise<AliasesResponse> {
@@ -214,5 +251,18 @@ export function updateAlias(
 export function deleteAlias(id: string): Promise<{ removed: boolean }> {
   return fetchJson<{ removed: boolean }>(`/api/dashboard/aliases/${id}`, {
     method: "DELETE",
+  })
+}
+
+export function loadSettings(): Promise<SettingsResponse> {
+  return fetchJson<SettingsResponse>("/api/dashboard/settings")
+}
+
+export function saveSettings(
+  entries: Record<string, string>,
+): Promise<{ ok: boolean }> {
+  return fetchJson<{ ok: boolean }>("/api/dashboard/settings", {
+    body: JSON.stringify({ entries }),
+    method: "POST",
   })
 }
