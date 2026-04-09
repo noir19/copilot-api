@@ -7,7 +7,7 @@ import { MetricCard } from "./metric-card"
 import { ModelBreakdownCard } from "./model-breakdown-card"
 import { ModelDistributionCard } from "./model-distribution-card"
 import { RecentRequestsCard } from "./recent-requests-card"
-import { UsageCard, UsageSummaryCard } from "./usage-card"
+import { UsageCard } from "./usage-card"
 
 export function OverviewPanel({ data }: { data: DashboardData }) {
   return (
@@ -39,25 +39,23 @@ export function OverviewPanel({ data }: { data: DashboardData }) {
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-8">
+      <div className="grid gap-6 xl:grid-cols-10">
+        <div className="xl:col-span-6">
           <ModelDistributionCard requestModels={data.requestModels} />
         </div>
         <div className="xl:col-span-4">
-          <UsageSummaryCard usage={data.usage} />
+          <UsageCard usage={data.usage} />
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-12">
+      <div className="grid gap-6 xl:grid-cols-10">
+        <div className="xl:col-span-6">
+          <RecentRequestsCard recentRequests={data.recentRequests} />
+        </div>
         <div className="xl:col-span-4">
           <ModelBreakdownCard requestModels={data.requestModels} />
         </div>
-        <div className="xl:col-span-8">
-          <RecentRequestsCard recentRequests={data.recentRequests} />
-        </div>
       </div>
-
-      <UsageCard usage={data.usage} />
     </div>
   )
 }
