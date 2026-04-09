@@ -8,6 +8,7 @@ import {
   PieChart,
   ResponsiveContainer,
   Tooltip,
+  XAxis,
   YAxis,
 } from "recharts"
 
@@ -124,22 +125,30 @@ export function ModelDistributionCard({
             还没有请求数据。
           </div>
         ) : view === "bar" ? (
-          <div className="h-[320px] flex-1">
+          <div className="h-[320px] flex-1 overflow-hidden rounded-2xl border border-slate-100 bg-white">
             <ResponsiveContainer height="100%" width="100%">
               <BarChart
+                barSize={28}
                 barCategoryGap={18}
                 data={chartData}
                 height={320}
                 layout="vertical"
-                margin={{ left: 24, right: 8, top: 8, bottom: 8 }}
+                margin={{ left: 20, right: 20, top: 16, bottom: 16 }}
               >
-                <CartesianGrid stroke="#e2e8f0" horizontal={false} />
+                <CartesianGrid stroke="#e2e8f0" vertical={false} />
+                <XAxis
+                  axisLine={false}
+                  domain={[0, "dataMax"]}
+                  tick={false}
+                  tickLine={false}
+                  type="number"
+                />
                 <YAxis
                   axisLine={false}
                   dataKey="label"
                   tickLine={false}
                   type="category"
-                  width={132}
+                  width={136}
                 />
                 <Tooltip cursor={{ fill: "#f8fafc" }} />
                 <Bar dataKey={metric} fill="#0f172a" radius={[0, 10, 10, 0]} />
