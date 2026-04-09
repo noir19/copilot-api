@@ -70,7 +70,8 @@ export async function handleCompletion(c: Context) {
       enqueueRequestLog({
         route: c.req.path,
         startedAt,
-        model: payload.model,
+        requestModel: payload.model,
+        targetModel: payload.model,
         stream: false,
         responseStatus: 200,
         inputTokens: response.usage?.prompt_tokens ?? null,
@@ -100,7 +101,8 @@ export async function handleCompletion(c: Context) {
         enqueueRequestLog({
           route: c.req.path,
           startedAt,
-          model: payload.model,
+          requestModel: payload.model,
+        targetModel: payload.model,
           stream: true,
           responseStatus: 200,
           inputTokens: usage?.promptTokens ?? null,
@@ -112,7 +114,8 @@ export async function handleCompletion(c: Context) {
         enqueueRequestLog({
           route: c.req.path,
           startedAt,
-          model: payload.model,
+          requestModel: payload.model,
+        targetModel: payload.model,
           stream: true,
           error,
           accountType: state.accountType,

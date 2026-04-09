@@ -6,7 +6,8 @@ import { HTTPError } from "~/lib/error"
 interface EnqueueRequestLogInput {
   route: string
   startedAt: number
-  model?: string | null
+  requestModel?: string | null
+  targetModel?: string | null
   stream?: boolean
   responseStatus?: number
   totalTokens?: number | null
@@ -44,13 +45,14 @@ export function enqueueRequestLog(input: EnqueueRequestLogInput): void {
   try {
     const statusCode = getStatusCode(input)
     const status = statusCode >= 400 ? "error" : "success"
-    const model = input.model ?? null
+    const requestModel = input.requestModel ?? null
+    const targetModel = input.targetModel ?? requestModel
 
     getRequestSink().enqueue({
       timestamp: new Date().toISOString(),
       route: input.route,
-      modelRaw: model,
-      modelDisplay: model,
+      modelRaw: targetModel,
+      modelDisplay: requestModel,
       stream: input.stream ?? false,
       status,
       statusCode,

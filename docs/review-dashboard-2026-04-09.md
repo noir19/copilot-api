@@ -129,3 +129,20 @@ GPT-5 系列模型（`gpt-5.*`）不支持 `max_tokens` 参数，必须使用 `m
 
 - 每个模型卡片增加 `Display Name` 和 `Model ID` 标签，区分 GitHub Copilot 返回的展示名和实际 API 用的原始 id
 - Model ID 旁边加复制按钮（点击变绿色勾号 1.5s），方便用户复制准确的 model id 用于配置
+
+### 9. 请求日志区分请求模型 / 目标模型，估价按目标模型
+
+**文件**: `src/lib/request-log.ts`, `src/routes/messages/handler.ts`, `src/routes/chat-completions/handler.ts`
+
+- 请求日志写入改为同时记录两种模型：
+  - `requestModel` = 用户原始请求模型
+  - `targetModel` = 最终发给 Copilot 的目标模型
+- 落库语义对齐为：
+  - `model_display` = 请求模型
+  - `model_raw` = 目标模型
+- `/v1/messages` 路径现在会把 `anthropicPayload.model` 和 `openAIPayload.model` 分开记录
+- `/v1/chat/completions` 路径统一跟随后端新日志契约
+- dashboard 请求日志表的“请求模型 / 目标模型”列无需改 UI，即可显示正确含义
+- 估价继续基于 `model_raw`，因此修复后会自然按目标模型计价
+
+**已知影响**: 历史日志因原始请求模型未保存，无法可靠回填。修复仅对新产生的日志生效。

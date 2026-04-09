@@ -56,7 +56,8 @@ export async function handleCompletion(c: Context) {
       enqueueRequestLog({
         route: c.req.path,
         startedAt,
-        model: openAIPayload.model,
+        requestModel: anthropicPayload.model,
+        targetModel: openAIPayload.model,
         stream: false,
         responseStatus: 200,
         inputTokens: response.usage?.prompt_tokens ?? null,
@@ -104,7 +105,8 @@ export async function handleCompletion(c: Context) {
         enqueueRequestLog({
           route: c.req.path,
           startedAt,
-          model: openAIPayload.model,
+          requestModel: anthropicPayload.model,
+        targetModel: openAIPayload.model,
           stream: true,
           responseStatus: 200,
           inputTokens: usage?.promptTokens ?? null,
@@ -116,7 +118,8 @@ export async function handleCompletion(c: Context) {
         enqueueRequestLog({
           route: c.req.path,
           startedAt,
-          model: openAIPayload.model,
+          requestModel: anthropicPayload.model,
+        targetModel: openAIPayload.model,
           stream: true,
           error,
           accountType: state.accountType,
