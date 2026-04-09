@@ -44,8 +44,6 @@ export function OverviewPanel({ data }: { data: DashboardData }) {
         />
       </div>
 
-      <RequestTrendCard initialData={data.timeSeries} />
-
       <div className="grid gap-4 xl:grid-cols-10">
         <div className="xl:col-span-6">
           <ModelDistributionCard requestModels={data.requestModels} />
@@ -54,6 +52,8 @@ export function OverviewPanel({ data }: { data: DashboardData }) {
           <UsageCard usage={data.usage} />
         </div>
       </div>
+
+      <RequestTrendCard initialData={data.timeSeries} />
     </div>
   )
 }
