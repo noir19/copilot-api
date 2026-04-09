@@ -48,55 +48,42 @@ function DashboardHeader({
   onRefresh: () => void
 }) {
   return (
-    <header className="rounded-[28px] border border-slate-200/70 bg-white/80 p-6 shadow-sm backdrop-blur">
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-4 border-b border-slate-200/70 pb-5 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <Badge className="bg-emerald-500 text-white">
-              <span className="mr-1.5 inline-block h-2 w-2 animate-pulse rounded-full bg-white" />
-              运行中
-            </Badge>
-            <Badge className="bg-white text-slate-600">
-              {dashboardData
-                ? `已记录 ${formatNumber(dashboardData.overview.totalRequests)} 次请求`
-                : "加载中"}
-            </Badge>
+    <header className="rounded-2xl border border-slate-200/70 bg-white/80 px-5 py-4 shadow-sm backdrop-blur">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 p-2.5 text-white shadow-md shadow-violet-500/20">
+            <Database className="h-4 w-4" />
           </div>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              disabled={isRefreshing}
-              onClick={onRefresh}
-              variant="outline"
-            >
-              <RefreshCcw
-                className={cn("mr-2 h-4 w-4", isRefreshing && "animate-spin")}
-              />
-              刷新数据
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 p-3 text-white shadow-lg shadow-violet-500/20">
-                <Database className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.22em] text-amber-700">
-                  Copilot API 控制台
-                </p>
-                <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-                  调用量与模型运维面板
-                </h1>
-              </div>
-            </div>
-            <p className="max-w-3xl text-sm leading-6 text-slate-600">
-              面板数据直接来自 SQLite 请求日志与实时 Copilot usage
-              接口。模型别名和展示映射都持久化在 SQLite
-              中，并通过内存缓存作用到运行时。
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight text-slate-950">
+              Copilot API 控制台
+            </h1>
+            <p className="text-xs text-slate-500">
+              数据来自 SQLite 请求日志与 Copilot usage 接口
             </p>
           </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Badge className="bg-emerald-500 text-white">
+            <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+            运行中
+          </Badge>
+          <Badge className="bg-white text-slate-600">
+            {dashboardData
+              ? `${formatNumber(dashboardData.overview.totalRequests)} 次请求`
+              : "加载中"}
+          </Badge>
+          <Button
+            disabled={isRefreshing}
+            onClick={onRefresh}
+            size="sm"
+            variant="outline"
+          >
+            <RefreshCcw
+              className={cn("mr-1.5 h-3.5 w-3.5", isRefreshing && "animate-spin")}
+            />
+            刷新
+          </Button>
         </div>
       </div>
     </header>
@@ -235,7 +222,7 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.14),_transparent_30%),linear-gradient(180deg,_#fffdf8_0%,_#f8fafc_42%,_#eef2ff_100%)] text-slate-900">
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
         <DashboardHeader
           dashboardData={dashboardData}
           isRefreshing={isRefreshing}

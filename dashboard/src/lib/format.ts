@@ -13,10 +13,15 @@ export function formatTimestamp(value: string | null): string {
     return "从未"
   }
 
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value))
+  const d = new Date(value)
+  const date = new Intl.DateTimeFormat(undefined, {
+    dateStyle: "short",
+  }).format(d)
+  const h = String(d.getHours()).padStart(2, "0")
+  const m = String(d.getMinutes()).padStart(2, "0")
+  const s = String(d.getSeconds()).padStart(2, "0")
+  const ms = String(d.getMilliseconds()).padStart(3, "0")
+  return `${date} ${h}:${m}:${s}.${ms}`
 }
 
 export function resolveQuotaValue(quota: QuotaDetail): string {

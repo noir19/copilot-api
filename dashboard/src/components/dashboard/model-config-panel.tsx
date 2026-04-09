@@ -1,8 +1,8 @@
 import { useState } from "react"
 
 import type { AliasesResponse, MappingsResponse } from "../../lib/dashboard-api"
-import { Button } from "../ui/button"
 import { cn } from "../../lib/utils"
+import { Button } from "../ui/button"
 import { MappingsPanel } from "./mappings-panel"
 import { ModelAliasesPanel } from "./model-aliases-panel"
 
