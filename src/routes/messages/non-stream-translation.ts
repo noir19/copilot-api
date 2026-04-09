@@ -30,13 +30,19 @@ import { mapOpenAIStopReasonToAnthropic } from "./utils"
 export function translateToOpenAI(
   payload: AnthropicMessagesPayload,
 ): ChatCompletionsPayload {
+  const model = resolveModelName(payload.model)
+  const usesCompletionTokens = model.toLowerCase().startsWith("gpt-5")
+
   return {
-    model: resolveModelName(payload.model),
+    model,
     messages: translateAnthropicMessagesToOpenAI(
       payload.messages,
       payload.system,
     ),
-    max_tokens: payload.max_tokens,
+    max_tokens: usesCompletionTokens ? undefined : payload.max_tokens,
+    max_completion_tokens: usesCompletionTokens
+      ? payload.max_tokens
+      : undefined,
     stop: payload.stop_sequences,
     stream: payload.stream,
     temperature: payload.temperature,
