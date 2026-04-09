@@ -1,5 +1,5 @@
-import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { Check, ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import type {
   ModelBreakdownRow,
@@ -42,6 +42,8 @@ export function RequestLogsPanel({
   const [committedFilter, setCommittedFilter] =
     useState<RequestLogFilter>(EMPTY_FILTER)
   const [errorDetail, setErrorDetail] = useState<string | null>(null)
+  const [justSearched, setJustSearched] = useState(false)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const modelOptions = useMemo(() => {
     const set = new Set<string>()
@@ -86,6 +88,9 @@ export function RequestLogsPanel({
     if (timeTo) f.timeTo = timeTo
     setCommittedFilter(f)
     setPage(0)
+    setJustSearched(true)
+    clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => setJustSearched(false), 800)
   }, [filterModel, filterRoute, filterStatus, timeFrom, timeTo])
 
   // Fetch rows for current page
@@ -195,13 +200,22 @@ export function RequestLogsPanel({
           step="1"
           value={timeTo}
         />
-        <Button disabled={loading} onClick={commitFilter} size="sm">
+        <Button
+          className={cn(
+            justSearched && !loading && "bg-emerald-600 hover:bg-emerald-600",
+          )}
+          disabled={loading}
+          onClick={commitFilter}
+          size="sm"
+        >
           {loading ? (
             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          ) : justSearched ? (
+            <Check className="mr-1.5 h-3.5 w-3.5" />
           ) : (
             <Search className="mr-1.5 h-3.5 w-3.5" />
           )}
-          {loading ? "查询中" : "查询"}
+          {loading ? "查询中" : justSearched ? "已查询" : "查询"}
         </Button>
         {hasFilter ? (
           <Button onClick={resetFilters} size="sm" variant="ghost">
