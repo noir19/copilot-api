@@ -156,7 +156,11 @@ export function RequestTrendCard({
       if (mode === "calendar") {
         const timeFrom = getCalendarStart(g)
         const limit = getCalendarLimit(g)
-        const result = await loadTimeSeries(gc.bucketMinutes, Math.max(limit, 1), timeFrom)
+        const result = await loadTimeSeries(
+          gc.bucketMinutes,
+          Math.max(limit, 1),
+          timeFrom,
+        )
         setData(result)
       } else {
         const result = await loadTimeSeries(gc.bucketMinutes, gc.limit)
@@ -188,40 +192,43 @@ export function RequestTrendCard({
               消耗和错误密度。趋势图会补齐空桶，避免把无请求时段压缩掉。
             </CardDescription>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
-              <Button
-                onClick={() => setWindowMode("rolling")}
-                size="sm"
-                variant={windowMode === "rolling" ? "default" : "ghost"}
-              >
-                滚动
-              </Button>
-              <Button
-                onClick={() => setWindowMode("calendar")}
-                size="sm"
-                variant={windowMode === "calendar" ? "default" : "ghost"}
-              >
-                自然
-              </Button>
-            </div>
-            <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
-              {(
-                Object.entries(GRANULARITY_CONFIG) as Array<
-                  [Granularity, (typeof GRANULARITY_CONFIG)[Granularity]]
-                >
-              ).map(([key, gc]) => (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
                 <Button
-                  key={key}
-                  onClick={() => setGranularity(key)}
+                  onClick={() => setWindowMode("rolling")}
                   size="sm"
-                  variant={granularity === key ? "default" : "ghost"}
+                  variant={windowMode === "rolling" ? "default" : "ghost"}
                 >
-                  {gc.label}
+                  滚动
                 </Button>
-              ))}
+                <Button
+                  onClick={() => setWindowMode("calendar")}
+                  size="sm"
+                  variant={windowMode === "calendar" ? "default" : "ghost"}
+                >
+                  自然
+                </Button>
+              </div>
+              <span className="h-4 w-px bg-slate-300" />
+              <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
+                {(
+                  Object.entries(GRANULARITY_CONFIG) as Array<
+                    [Granularity, (typeof GRANULARITY_CONFIG)[Granularity]]
+                  >
+                ).map(([key, gc]) => (
+                  <Button
+                    key={key}
+                    onClick={() => setGranularity(key)}
+                    size="sm"
+                    variant={granularity === key ? "default" : "ghost"}
+                  >
+                    {gc.label}
+                  </Button>
+                ))}
+              </div>
             </div>
-            <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
+            <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5 self-start">
               {(
                 Object.entries(METRIC_CONFIG) as Array<
                   [TrendMetric, (typeof METRIC_CONFIG)[TrendMetric]]
@@ -246,8 +253,8 @@ export function RequestTrendCard({
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
               当前窗口总计
             </p>
-            <p className="mt-1 text-xl font-semibold text-slate-950">
-              {formatNumber(total)}
+            <p className="mt-1 text-xl font-semibold tabular-nums text-slate-950">
+              {formatCompactNumber(total)}
             </p>
           </div>
           <div className="rounded-2xl bg-slate-50 px-4 py-3">
