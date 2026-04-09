@@ -90,9 +90,7 @@ export function RequestLogsPanel({
   }, [filter])
 
   const countLoaded = total >= 0
-  const totalPages = countLoaded
-    ? Math.max(1, Math.ceil(total / PAGE_SIZE))
-    : 0
+  const totalPages = countLoaded ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : 0
   const safePage = countLoaded ? Math.min(page, totalPages - 1) : page
 
   const hasFilter =
@@ -185,8 +183,7 @@ export function RequestLogsPanel({
           <TableHeader>
             <TableRow>
               <TableHead>时间</TableHead>
-              <TableHead>请求模型</TableHead>
-              <TableHead>展示模型</TableHead>
+              <TableHead>模型</TableHead>
               <TableHead>路由</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>延迟</TableHead>
@@ -199,7 +196,7 @@ export function RequestLogsPanel({
           <TableBody>
             {rows.length === 0 && !loading ? (
               <TableRow>
-                <TableCell className="py-6 text-slate-500" colSpan={10}>
+                <TableCell className="py-6 text-slate-500" colSpan={9}>
                   {hasFilter ? "没有匹配的日志记录。" : "还没有日志数据。"}
                 </TableCell>
               </TableRow>
@@ -211,9 +208,6 @@ export function RequestLogsPanel({
                     <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
                       {request.modelRaw ?? "未知"}
                     </code>
-                  </TableCell>
-                  <TableCell>
-                    {request.modelDisplay ?? request.modelRaw ?? "未知"}
                   </TableCell>
                   <TableCell>
                     <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
@@ -248,9 +242,13 @@ export function RequestLogsPanel({
 
       <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2">
         <p className="text-sm text-slate-500">
-          {countLoaded
-            ? <>共 {total} 条{hasFilter ? "（已筛选）" : ""}</>
-            : "统计中..."}
+          {countLoaded ? (
+            <>
+              共 {total} 条{hasFilter ? "（已筛选）" : ""}
+            </>
+          ) : (
+            "统计中..."
+          )}
         </p>
         <div className="flex items-center gap-2">
           <Button
@@ -262,10 +260,13 @@ export function RequestLogsPanel({
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-sm tabular-nums text-slate-600">
-            {safePage + 1}{countLoaded ? ` / ${totalPages}` : ""}
+            {safePage + 1}
+            {countLoaded ? ` / ${totalPages}` : ""}
           </span>
           <Button
-            disabled={countLoaded ? safePage >= totalPages - 1 : rows.length < PAGE_SIZE}
+            disabled={
+              countLoaded ? safePage >= totalPages - 1 : rows.length < PAGE_SIZE
+            }
             onClick={() => setPage(page + 1)}
             size="sm"
             variant="outline"

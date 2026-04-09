@@ -1,6 +1,6 @@
 import consola from "consola"
 
-import { getModelMappingStore, getRequestSink } from "~/db/runtime"
+import { getRequestSink } from "~/db/runtime"
 import { HTTPError } from "~/lib/error"
 
 interface EnqueueRequestLogInput {
@@ -50,9 +50,7 @@ export function enqueueRequestLog(input: EnqueueRequestLogInput): void {
       timestamp: new Date().toISOString(),
       route: input.route,
       modelRaw: model,
-      modelDisplay: model
-        ? getModelMappingStore().resolveDisplayName(model)
-        : null,
+      modelDisplay: model,
       stream: input.stream ?? false,
       status,
       statusCode,

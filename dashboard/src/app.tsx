@@ -19,8 +19,6 @@ import {
   type DashboardData,
   loadAliases,
   loadDashboardData,
-  loadMappings,
-  type MappingsResponse,
 } from "./lib/dashboard-api"
 import { formatNumber } from "./lib/format"
 import { cn } from "./lib/utils"
@@ -130,7 +128,6 @@ function DashboardContent({
   dashboardData,
   error,
   isLoading,
-  mappingsResponse,
   onRefresh,
 }: {
   activeTab: DashboardTab
@@ -138,7 +135,6 @@ function DashboardContent({
   dashboardData: DashboardData | null
   error: string | null
   isLoading: boolean
-  mappingsResponse: MappingsResponse | null
   onRefresh: () => Promise<void>
 }) {
   if (isLoading) {
@@ -161,7 +157,7 @@ function DashboardContent({
     )
   }
 
-  if (!dashboardData || !mappingsResponse || !aliasesResponse) {
+  if (!dashboardData || !aliasesResponse) {
     return null
   }
 
@@ -174,7 +170,6 @@ function DashboardContent({
       {activeTab === "models" ? (
         <ModelConfigPanel
           aliases={aliasesResponse}
-          mappings={mappingsResponse}
           onChanged={onRefresh}
         />
       ) : null}
@@ -188,8 +183,6 @@ export function App() {
   const [aliasesResponse, setAliasesResponse] =
     useState<AliasesResponse | null>(null)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
-  const [mappingsResponse, setMappingsResponse] =
-    useState<MappingsResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -199,14 +192,12 @@ export function App() {
     setError(null)
 
     try {
-      const [data, aliases, mappings] = await Promise.all([
+      const [data, aliases] = await Promise.all([
         loadDashboardData(),
         loadAliases(),
-        loadMappings(),
       ])
       setDashboardData(data)
       setAliasesResponse(aliases)
-      setMappingsResponse(mappings)
     } catch (refreshError) {
       setError(
         refreshError instanceof Error
@@ -238,7 +229,6 @@ export function App() {
           dashboardData={dashboardData}
           error={error}
           isLoading={isLoading}
-          mappingsResponse={mappingsResponse}
           onRefresh={refresh}
         />
       </div>

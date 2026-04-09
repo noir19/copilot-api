@@ -57,8 +57,7 @@ server.route(
     listAliases: () => getModelAliasRepository().list(),
     getRecentRequests: (options) =>
       getRequestLogRepository().getRecentRequests(options),
-    countRequests: (filter) =>
-      getRequestLogRepository().countRequests(filter),
+    countRequests: (filter) => getRequestLogRepository().countRequests(filter),
     listMappings: () => getModelMappingRepository().list(),
     removeAlias: removeModelAlias,
     createMapping: createModelMapping,

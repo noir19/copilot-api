@@ -86,7 +86,9 @@ export function createDashboardRoute(deps: DashboardRouteDeps) {
     return c.json({ data })
   })
 
-  function parseRequestFilter(c: { req: { query(key: string): string | undefined } }): RequestLogFilter {
+  function parseRequestFilter(c: {
+    req: { query(key: string): string | undefined }
+  }): RequestLogFilter {
     const filter: RequestLogFilter = {}
     const model = c.req.query("model")
     const routeQ = c.req.query("route")

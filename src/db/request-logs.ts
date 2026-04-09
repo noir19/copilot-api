@@ -273,10 +273,7 @@ function readFilteredRequests(
   return rows.map((row) => toRecentRequest(row))
 }
 
-function countFilteredRequests(
-  db: Database,
-  filter: RequestLogFilter,
-): number {
+function countFilteredRequests(db: Database, filter: RequestLogFilter): number {
   const { clause, params } = buildWhereClause(filter)
   const row = db
     .query<{ cnt: number }, Array<string>>(
