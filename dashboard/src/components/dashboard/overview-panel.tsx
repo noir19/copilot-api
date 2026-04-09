@@ -39,14 +39,22 @@ export function OverviewPanel({ data }: { data: DashboardData }) {
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <ModelDistributionCard requestModels={data.requestModels} />
-        <UsageCard usage={data.usage} />
+      <div className="grid gap-6 xl:grid-cols-12">
+        <div className="xl:col-span-7">
+          <ModelDistributionCard requestModels={data.requestModels} />
+        </div>
+        <div className="xl:col-span-5">
+          <UsageCard usage={data.usage} />
+        </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <ModelBreakdownCard requestModels={data.requestModels} />
-        <RecentRequestsCard recentRequests={data.recentRequests} />
+      <div className="grid gap-6 xl:grid-cols-12">
+        <div className="xl:col-span-5">
+          <ModelBreakdownCard requestModels={data.requestModels} />
+        </div>
+        <div className="xl:col-span-7">
+          <RecentRequestsCard recentRequests={data.recentRequests} />
+        </div>
       </div>
     </div>
   )

@@ -50,40 +50,53 @@ function DashboardHeader({
   onRefresh: () => void
 }) {
   return (
-    <header className="flex flex-col gap-6 rounded-[28px] border border-slate-200/70 bg-white/80 p-6 shadow-sm backdrop-blur md:flex-row md:items-end md:justify-between">
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="rounded-2xl bg-slate-950 p-3 text-slate-50 shadow-lg shadow-slate-900/10">
-            <Database className="h-5 w-5" />
+    <header className="rounded-[28px] border border-slate-200/70 bg-white/80 p-6 shadow-sm backdrop-blur">
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4 border-b border-slate-200/70 pb-5 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <Badge className="bg-slate-950 text-slate-50">运行中</Badge>
+            <Badge className="bg-white text-slate-600">
+              {dashboardData
+                ? `已记录 ${formatNumber(dashboardData.overview.totalRequests)} 次请求`
+                : "加载中"}
+            </Badge>
           </div>
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.22em] text-amber-700">
-              Copilot API 控制台
-            </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-              调用量与模型运维面板
-            </h1>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              disabled={isRefreshing}
+              onClick={onRefresh}
+              variant="outline"
+            >
+              <RefreshCcw
+                className={cn("mr-2 h-4 w-4", isRefreshing && "animate-spin")}
+              />
+              刷新数据
+            </Button>
           </div>
         </div>
-        <p className="max-w-2xl text-sm leading-6 text-slate-600">
-          面板数据直接来自 SQLite 请求日志与实时 Copilot usage
-          接口。模型别名和展示映射都持久化在 SQLite
-          中，并通过内存缓存作用到运行时。
-        </p>
-      </div>
 
-      <div className="flex flex-wrap gap-3">
-        <Button disabled={isRefreshing} onClick={onRefresh} variant="outline">
-          <RefreshCcw
-            className={cn("mr-2 h-4 w-4", isRefreshing && "animate-spin")}
-          />
-          刷新
-        </Button>
-        <Badge className="bg-white text-slate-600">
-          {dashboardData
-            ? `已记录 ${formatNumber(dashboardData.overview.totalRequests)} 次请求`
-            : "加载中"}
-        </Badge>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-slate-950 p-3 text-slate-50 shadow-lg shadow-slate-900/10">
+                <Database className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-medium uppercase tracking-[0.22em] text-amber-700">
+                  Copilot API 控制台
+                </p>
+                <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
+                  调用量与模型运维面板
+                </h1>
+              </div>
+            </div>
+            <p className="max-w-3xl text-sm leading-6 text-slate-600">
+              面板数据直接来自 SQLite 请求日志与实时 Copilot usage
+              接口。模型别名和展示映射都持久化在 SQLite
+              中，并通过内存缓存作用到运行时。
+            </p>
+          </div>
+        </div>
       </div>
     </header>
   )
