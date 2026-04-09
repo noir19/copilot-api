@@ -11,6 +11,7 @@ import type {
 import type {
   ModelBreakdownRow,
   RecentRequestRow,
+  RequestLogFilter,
   RequestOverview,
   TimeSeriesPoint,
 } from "~/db/request-logs"
@@ -28,7 +29,8 @@ interface DashboardRouteDeps {
   getRecentRequests(options: {
     limit: number
     offset: number
-  }): Promise<Array<RecentRequestRow>>
+    filter?: RequestLogFilter
+  }): Promise<{ data: Array<RecentRequestRow>; total: number }>
   listMappings(): Promise<Array<ModelMappingRecord>>
   removeAlias(id: string): Promise<boolean>
   createMapping(input: CreateModelMappingInput): Promise<ModelMappingRecord>
@@ -84,10 +86,25 @@ export function createDashboardRoute(deps: DashboardRouteDeps) {
   })
 
   route.get("/requests", async (c) => {
-    const limit = Number.parseInt(c.req.query("limit") ?? "50", 10)
+    const limit = Number.parseInt(c.req.query("limit") ?? "20", 10)
     const offset = Number.parseInt(c.req.query("offset") ?? "0", 10)
-    const data = await deps.getRecentRequests({ limit, offset })
-    return c.json({ data, limit, offset })
+    const filter: RequestLogFilter = {}
+    const model = c.req.query("model")
+    const routeQ = c.req.query("route")
+    const status = c.req.query("status")
+    const timeFrom = c.req.query("timeFrom")
+    const timeTo = c.req.query("timeTo")
+    if (model) filter.model = model
+    if (routeQ) filter.route = routeQ
+    if (status === "success" || status === "error") filter.status = status
+    if (timeFrom) filter.timeFrom = timeFrom
+    if (timeTo) filter.timeTo = timeTo
+    const { data, total } = await deps.getRecentRequests({
+      limit,
+      offset,
+      filter,
+    })
+    return c.json({ data, total, limit, offset })
   })
 
   route.get("/time-series", async (c) => {

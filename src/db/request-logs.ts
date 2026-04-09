@@ -198,12 +198,63 @@ function readModelBreakdown(db: Database): Array<ModelBreakdownRow> {
   }))
 }
 
-function readRecentRequests(
+export interface RequestLogFilter {
+  model?: string
+  route?: string
+  status?: "success" | "error"
+  timeFrom?: string
+  timeTo?: string
+}
+
+function buildWhereClause(filter: RequestLogFilter): {
+  clause: string
+  params: Array<string>
+} {
+  const conditions: Array<string> = []
+  const params: Array<string> = []
+
+  if (filter.model) {
+    params.push(filter.model)
+    conditions.push(`model_raw = ?${params.length}`)
+  }
+  if (filter.route) {
+    params.push(`%${filter.route}%`)
+    conditions.push(`route LIKE ?${params.length}`)
+  }
+  if (filter.status) {
+    params.push(filter.status)
+    conditions.push(`status = ?${params.length}`)
+  }
+  if (filter.timeFrom) {
+    params.push(filter.timeFrom)
+    conditions.push(`timestamp >= ?${params.length}`)
+  }
+  if (filter.timeTo) {
+    params.push(filter.timeTo)
+    conditions.push(`timestamp <= ?${params.length}`)
+  }
+
+  return {
+    clause: conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "",
+    params,
+  }
+}
+
+function readFilteredRequests(
   db: Database,
-  options: { limit: number; offset: number },
-): Array<RecentRequestRow> {
+  options: { limit: number; offset: number; filter: RequestLogFilter },
+): { data: Array<RecentRequestRow>; total: number } {
+  const { clause, params } = buildWhereClause(options.filter)
+
+  const countRow = db
+    .query<{ cnt: number }, Array<string>>(
+      `SELECT COUNT(*) AS cnt FROM request_logs ${clause}`,
+    )
+    .get(...params)
+  const total = countRow?.cnt ?? 0
+
   const rows = db
-    .query<RecentRequestDbRow, [number, number]>(
+    .query<RecentRequestDbRow, Array<string | number>>(
       `SELECT
          id,
          timestamp,
@@ -220,12 +271,13 @@ function readRecentRequests(
          error_message,
          account_type
        FROM request_logs
+       ${clause}
        ORDER BY timestamp DESC
-       LIMIT ?1 OFFSET ?2`,
+       LIMIT ?${params.length + 1} OFFSET ?${params.length + 2}`,
     )
-    .all(options.limit, options.offset)
+    .all(...params, options.limit, options.offset)
 
-  return rows.map((row) => toRecentRequest(row))
+  return { data: rows.map((row) => toRecentRequest(row)), total }
 }
 
 interface TimeSeriesDbRow {
@@ -286,8 +338,15 @@ export function createRequestLogRepository(db: Database) {
     getRecentRequests(options: {
       limit: number
       offset: number
-    }): Promise<Array<RecentRequestRow>> {
-      return Promise.resolve(readRecentRequests(db, options))
+      filter?: RequestLogFilter
+    }): Promise<{ data: Array<RecentRequestRow>; total: number }> {
+      return Promise.resolve(
+        readFilteredRequests(db, {
+          limit: options.limit,
+          offset: options.offset,
+          filter: options.filter ?? {},
+        }),
+      )
     },
 
     deleteOlderThan(cutoff: string): Promise<number> {

@@ -79,9 +79,16 @@ export interface MappingSnapshot {
   version: number
 }
 
+export interface RequestLogFilter {
+  model?: string
+  route?: string
+  status?: "success" | "error"
+  timeFrom?: string
+  timeTo?: string
+}
+
 export interface DashboardData {
   overview: RequestOverview
-  recentRequests: Array<RecentRequestRow>
   requestModels: Array<ModelBreakdownRow>
   timeSeries: Array<TimeSeriesPoint>
   usage: CopilotUsageResponse
@@ -117,6 +124,7 @@ export interface AliasesResponse {
 
 interface RequestsResponse {
   data: Array<RecentRequestRow>
+  total: number
 }
 
 interface ModelsResponse {
@@ -169,11 +177,10 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {
-  const [overview, usage, models, requests, timeSeries] = await Promise.all([
+  const [overview, usage, models, timeSeries] = await Promise.all([
     fetchJson<RequestOverview>("/api/dashboard/overview"),
     fetchJson<CopilotUsageResponse>("/api/dashboard/usage"),
     fetchJson<ModelsResponse>("/api/dashboard/models"),
-    fetchJson<RequestsResponse>("/api/dashboard/requests?limit=100"),
     fetchJson<TimeSeriesResponse>(
       "/api/dashboard/time-series?bucket=60&limit=168",
     ),
@@ -181,11 +188,29 @@ export async function loadDashboardData(): Promise<DashboardData> {
 
   return {
     overview,
-    recentRequests: requests.data,
     requestModels: models.data,
     timeSeries: timeSeries.data,
     usage,
   }
+}
+
+export async function loadRequests(
+  page: number,
+  pageSize: number,
+  filter?: RequestLogFilter,
+): Promise<{ data: Array<RecentRequestRow>; total: number }> {
+  const params = new URLSearchParams()
+  params.set("limit", String(pageSize))
+  params.set("offset", String(page * pageSize))
+  if (filter?.model) params.set("model", filter.model)
+  if (filter?.route) params.set("route", filter.route)
+  if (filter?.status) params.set("status", filter.status)
+  if (filter?.timeFrom) params.set("timeFrom", new Date(filter.timeFrom).toISOString())
+  if (filter?.timeTo) params.set("timeTo", new Date(filter.timeTo).toISOString())
+  const res = await fetchJson<RequestsResponse>(
+    `/api/dashboard/requests?${params.toString()}`,
+  )
+  return { data: res.data, total: res.total }
 }
 
 export function loadMappings(): Promise<MappingsResponse> {

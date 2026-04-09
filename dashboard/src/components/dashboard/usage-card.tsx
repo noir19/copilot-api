@@ -2,12 +2,7 @@ import type { CopilotUsageResponse } from "../../lib/dashboard-api"
 
 import { formatTimestamp } from "../../lib/format"
 import { Badge } from "../ui/badge"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card"
 import { QuotaCard } from "./quota-card"
 
 export function UsageCard({ usage }: { usage: CopilotUsageResponse }) {

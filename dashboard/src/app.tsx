@@ -80,7 +80,10 @@ function DashboardHeader({
             variant="outline"
           >
             <RefreshCcw
-              className={cn("mr-1.5 h-3.5 w-3.5", isRefreshing && "animate-spin")}
+              className={cn(
+                "mr-1.5 h-3.5 w-3.5",
+                isRefreshing && "animate-spin",
+              )}
             />
             刷新
           </Button>
@@ -167,7 +170,6 @@ function DashboardContent({
       {activeTab === "overview" ? <OverviewPanel data={dashboardData} /> : null}
       {activeTab === "logs" ? (
         <RequestLogsPanel
-          requests={dashboardData.recentRequests}
           allModels={dashboardData.requestModels}
         />
       ) : null}

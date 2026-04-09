@@ -1,22 +1,11 @@
 import { useState } from "react"
-import {
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts"
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
 
 import type { ModelBreakdownRow } from "../../lib/dashboard-api"
 
 import { formatNumber } from "../../lib/format"
 import { Button } from "../ui/button"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card"
 
 type DistributionMetric = "requests" | "tokens"
 type DistributionView = "bar" | "donut" | "list"
@@ -100,9 +89,7 @@ export function ModelDistributionCard({
           <p className="font-semibold tabular-nums text-slate-950">
             {metricLabel} {formatNumber(totalValue)}
           </p>
-          <p className="text-slate-500">
-            Top {chartData.length} 模型
-          </p>
+          <p className="text-slate-500">Top {chartData.length} 模型</p>
         </div>
         {chartData.length === 0 ? (
           <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">

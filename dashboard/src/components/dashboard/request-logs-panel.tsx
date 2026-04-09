@@ -1,7 +1,12 @@
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
-import type { ModelBreakdownRow, RecentRequestRow } from "../../lib/dashboard-api"
+import type {
+  ModelBreakdownRow,
+  RecentRequestRow,
+  RequestLogFilter,
+} from "../../lib/dashboard-api"
+import { loadRequests } from "../../lib/dashboard-api"
 import { formatTimestamp } from "../../lib/format"
 import { cn } from "../../lib/utils"
 import { Badge } from "../ui/badge"
@@ -20,10 +25,8 @@ import {
 const PAGE_SIZE = 20
 
 export function RequestLogsPanel({
-  requests,
   allModels,
 }: {
-  requests: Array<RecentRequestRow>
   allModels: Array<ModelBreakdownRow>
 }) {
   const [filterModel, setFilterModel] = useState("")
@@ -32,6 +35,9 @@ export function RequestLogsPanel({
   const [timeFrom, setTimeFrom] = useState("")
   const [timeTo, setTimeTo] = useState("")
   const [page, setPage] = useState(0)
+  const [rows, setRows] = useState<Array<RecentRequestRow>>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
 
   const modelOptions = useMemo(() => {
     const set = new Set<string>()
@@ -41,28 +47,43 @@ export function RequestLogsPanel({
     return Array.from(set).sort()
   }, [allModels])
 
-  const filtered = useMemo(() => {
-    const fromMs = timeFrom ? new Date(timeFrom).getTime() : 0
-    const toMs = timeTo ? new Date(timeTo).getTime() : Number.MAX_SAFE_INTEGER
-    return requests.filter((r) => {
-      if (filterModel && r.modelRaw !== filterModel) return false
-      if (filterRoute && !r.route.toLowerCase().includes(filterRoute.toLowerCase())) return false
-      if (filterStatus === "success" && r.status !== "success") return false
-      if (filterStatus === "error" && r.status !== "error") return false
-      const ts = new Date(r.timestamp).getTime()
-      if (ts < fromMs || ts > toMs) return false
-      return true
-    })
-  }, [requests, filterModel, filterRoute, filterStatus, timeFrom, timeTo])
+  const filter = useMemo<RequestLogFilter>(() => {
+    const f: RequestLogFilter = {}
+    if (filterModel) f.model = filterModel
+    if (filterRoute) f.route = filterRoute
+    if (filterStatus === "success" || filterStatus === "error")
+      f.status = filterStatus
+    if (timeFrom) f.timeFrom = timeFrom
+    if (timeTo) f.timeTo = timeTo
+    return f
+  }, [filterModel, filterRoute, filterStatus, timeFrom, timeTo])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    loadRequests(page, PAGE_SIZE, filter)
+      .then((result) => {
+        if (!cancelled) {
+          setRows(result.data)
+          setTotal(result.total)
+        }
+      })
+      .catch(() => {
+        // keep existing data on error
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [page, filter])
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const safePage = Math.min(page, totalPages - 1)
-  const pageRows = filtered.slice(
-    safePage * PAGE_SIZE,
-    (safePage + 1) * PAGE_SIZE,
-  )
 
-  const hasFilter = filterModel || filterRoute || filterStatus || timeFrom || timeTo
+  const hasFilter =
+    filterModel || filterRoute || filterStatus || timeFrom || timeTo
 
   function resetFilters() {
     setFilterModel("")
@@ -78,23 +99,34 @@ export function RequestLogsPanel({
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-3">
         <select
           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
-          onChange={(e) => { setFilterModel(e.target.value); setPage(0) }}
+          onChange={(e) => {
+            setFilterModel(e.target.value)
+            setPage(0)
+          }}
           value={filterModel}
         >
           <option value="">全部模型</option>
           {modelOptions.map((m) => (
-            <option key={m} value={m}>{m}</option>
+            <option key={m} value={m}>
+              {m}
+            </option>
           ))}
         </select>
         <Input
           className="h-8 w-40"
-          onChange={(e) => { setFilterRoute(e.target.value); setPage(0) }}
+          onChange={(e) => {
+            setFilterRoute(e.target.value)
+            setPage(0)
+          }}
           placeholder="路由"
           value={filterRoute}
         />
         <select
           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
-          onChange={(e) => { setFilterStatus(e.target.value); setPage(0) }}
+          onChange={(e) => {
+            setFilterStatus(e.target.value)
+            setPage(0)
+          }}
           value={filterStatus}
         >
           <option value="">全部状态</option>
@@ -104,7 +136,10 @@ export function RequestLogsPanel({
         <span className="mx-0.5 h-4 w-px bg-slate-200" />
         <input
           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
-          onChange={(e) => { setTimeFrom(e.target.value); setPage(0) }}
+          onChange={(e) => {
+            setTimeFrom(e.target.value)
+            setPage(0)
+          }}
           type="datetime-local"
           step="1"
           value={timeFrom}
@@ -112,7 +147,10 @@ export function RequestLogsPanel({
         <span className="text-xs text-slate-400">至</span>
         <input
           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
-          onChange={(e) => { setTimeTo(e.target.value); setPage(0) }}
+          onChange={(e) => {
+            setTimeTo(e.target.value)
+            setPage(0)
+          }}
           type="datetime-local"
           step="1"
           value={timeTo}
@@ -124,7 +162,12 @@ export function RequestLogsPanel({
         ) : null}
       </div>
 
-      <TableWrapper className="flex-1 overflow-auto">
+      <TableWrapper className="relative flex-1 overflow-auto">
+        {loading ? (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60">
+            <span className="text-sm text-slate-500">加载中...</span>
+          </div>
+        ) : null}
         <Table>
           <TableHeader>
             <TableRow>
@@ -141,14 +184,14 @@ export function RequestLogsPanel({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pageRows.length === 0 ? (
+            {rows.length === 0 && !loading ? (
               <TableRow>
                 <TableCell className="py-6 text-slate-500" colSpan={10}>
                   {hasFilter ? "没有匹配的日志记录。" : "还没有日志数据。"}
                 </TableCell>
               </TableRow>
             ) : (
-              pageRows.map((request) => (
+              rows.map((request) => (
                 <TableRow key={request.id}>
                   <TableCell>{formatTimestamp(request.timestamp)}</TableCell>
                   <TableCell>
@@ -192,7 +235,7 @@ export function RequestLogsPanel({
 
       <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2">
         <p className="text-sm text-slate-500">
-          共 {filtered.length} 条{hasFilter ? "（已筛选）" : ""}
+          共 {total} 条{hasFilter ? "（已筛选）" : ""}
         </p>
         <div className="flex items-center gap-2">
           <Button
