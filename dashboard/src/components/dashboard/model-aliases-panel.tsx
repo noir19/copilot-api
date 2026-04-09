@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 
+import { Check, Copy } from "lucide-react"
+
 import {
   type AliasDraft,
   type AliasesResponse,
@@ -50,6 +52,14 @@ export function ModelAliasesPanel({
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [dashToDotEnabled, setDashToDotEnabled] = useState(true)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  function copyModelId(id: string) {
+    void navigator.clipboard.writeText(id).then(() => {
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 1500)
+    })
+  }
 
   useEffect(() => {
     loadSettings()
@@ -405,13 +415,33 @@ export function ModelAliasesPanel({
                   key={model.id}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
-                      <p className="truncate text-sm font-semibold text-slate-950">
-                        {model.name}
-                      </p>
-                      <code className="block break-all rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
-                        {model.id}
-                      </code>
+                    <div className="min-w-0 space-y-1.5">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-slate-400">Display Name</p>
+                        <p className="truncate text-sm font-semibold text-slate-950">
+                          {model.name}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-slate-400">Model ID</p>
+                        <div className="flex items-center gap-1.5">
+                          <code className="break-all rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                            {model.id}
+                          </code>
+                          <button
+                            className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                            onClick={() => copyModelId(model.id)}
+                            title="复制 Model ID"
+                            type="button"
+                          >
+                            {copiedId === model.id ? (
+                              <Check className="h-3.5 w-3.5 text-emerald-500" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                     <Button
                       className="shrink-0"
