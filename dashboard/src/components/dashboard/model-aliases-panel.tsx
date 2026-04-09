@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import {
   type AliasDraft,
@@ -6,7 +6,9 @@ import {
   createAlias,
   deleteAlias,
   EMPTY_ALIAS_DRAFT,
+  loadSettings,
   type ModelAliasRecord,
+  saveSettings,
   type SupportedModel,
   updateAlias,
 } from "../../lib/dashboard-api"
@@ -47,6 +49,27 @@ export function ModelAliasesPanel({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [dashToDotEnabled, setDashToDotEnabled] = useState(true)
+
+  useEffect(() => {
+    loadSettings()
+      .then((data) => {
+        setDashToDotEnabled(data.settings.dash_to_dot_enabled !== "false")
+      })
+      .catch(() => {})
+  }, [])
+
+  const toggleDashToDot = useCallback(
+    async (enabled: boolean) => {
+      setDashToDotEnabled(enabled)
+      try {
+        await saveSettings({ dash_to_dot_enabled: enabled ? "true" : "false" })
+      } catch {
+        setDashToDotEnabled(!enabled)
+      }
+    },
+    [],
+  )
 
   async function withRefresh(action: () => Promise<void>) {
     setError(null)
@@ -95,6 +118,27 @@ export function ModelAliasesPanel({
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">映射策略</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              checked={dashToDotEnabled}
+              onChange={(e) => void toggleDashToDot(e.target.checked)}
+              type="checkbox"
+            />
+            启用 dash-to-dot 自动转换
+          </label>
+          <p className="mt-2 text-xs text-slate-500">
+            启用后，请求模型名中的短横线会自动匹配可用模型的点号版本（如
+            claude-sonnet-4-6 → claude-sonnet-4.6）。
+            关闭后需手动添加别名。
+          </p>
+        </CardContent>
+      </Card>
+
       {error ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
@@ -246,6 +290,7 @@ export function ModelAliasesPanel({
                                     onClick={() => handleDelete(alias.id)}
                                     size="sm"
                                     variant="ghost"
+                                    className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
                                   >
                                     删除
                                   </Button>
@@ -373,6 +418,7 @@ export function ModelAliasesPanel({
                       </code>
                     </div>
                     <Button
+                      className="shrink-0"
                       onClick={() =>
                         setDraft((current) => ({
                           ...current,
@@ -382,7 +428,7 @@ export function ModelAliasesPanel({
                       size="sm"
                       variant="outline"
                     >
-                      填入目标模型
+                      填入
                     </Button>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">

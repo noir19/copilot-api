@@ -230,10 +230,11 @@ export async function loadRequestCount(
 export async function loadTimeSeries(
   bucketMinutes: number,
   limit: number,
+  timeFrom?: string,
 ): Promise<Array<TimeSeriesPoint>> {
-  const res = await fetchJson<TimeSeriesResponse>(
-    `/api/dashboard/time-series?bucket=${bucketMinutes}&limit=${limit}`,
-  )
+  let url = `/api/dashboard/time-series?bucket=${bucketMinutes}&limit=${limit}`
+  if (timeFrom) url += `&timeFrom=${encodeURIComponent(timeFrom)}`
+  const res = await fetchJson<TimeSeriesResponse>(url)
   return res.data
 }
 

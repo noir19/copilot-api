@@ -386,21 +386,27 @@ function readTimeSeries(
   db: Database,
   bucketMinutes: number,
   limit: number,
+  timeFrom?: string,
 ): Array<TimeSeriesPoint> {
   const format = getBucketFormat(bucketMinutes)
+  const whereClause = timeFrom ? `WHERE timestamp >= ?2` : ""
+  const params: Array<string | number> = [limit]
+  if (timeFrom) params.push(timeFrom)
+
   const rows = db
-    .query<TimeSeriesDbRow, [number]>(
+    .query<TimeSeriesDbRow, Array<unknown>>(
       `SELECT
          strftime('${format}', timestamp) AS bucket,
          COUNT(*) AS requests,
          COALESCE(SUM(total_tokens), 0) AS tokens,
          SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS errors
        FROM request_logs
+       ${whereClause}
        GROUP BY bucket
        ORDER BY bucket DESC
        LIMIT ?1`,
     )
-    .all(limit)
+    .all(...params)
 
   return fillMissingTimeSeriesBuckets(rows, bucketMinutes, limit)
 }
@@ -453,9 +459,10 @@ export function createRequestLogRepository(db: Database) {
     getTimeSeries(options: {
       bucketMinutes: number
       limit: number
+      timeFrom?: string
     }): Promise<Array<TimeSeriesPoint>> {
       return Promise.resolve(
-        readTimeSeries(db, options.bucketMinutes, options.limit),
+        readTimeSeries(db, options.bucketMinutes, options.limit, options.timeFrom),
       )
     },
   }

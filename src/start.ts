@@ -56,6 +56,11 @@ export async function runServer(options: RunServerOptions): Promise<void> {
   await initializeDashboardRuntime()
   await cacheVSCodeVersion()
 
+  // Refresh VS Code version every 24 hours
+  setInterval(() => {
+    void cacheVSCodeVersion()
+  }, 24 * 60 * 60 * 1000)
+
   await setupGitHubToken({
     githubToken: options.githubToken,
     githubTokenFile: options.githubTokenFile,

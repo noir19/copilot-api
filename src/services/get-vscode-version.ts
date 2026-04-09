@@ -1,6 +1,6 @@
-const FALLBACK = "1.104.3"
+const FALLBACK = "1.115.0"
 
-export async function getVSCodeVersion() {
+export async function getVSCodeVersion(): Promise<string> {
   const controller = new AbortController()
   const timeout = setTimeout(() => {
     controller.abort()
@@ -8,18 +8,14 @@ export async function getVSCodeVersion() {
 
   try {
     const response = await fetch(
-      "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=visual-studio-code-bin",
-      {
-        signal: controller.signal,
-      },
+      "https://update.code.visualstudio.com/api/releases/stable",
+      { signal: controller.signal },
     )
 
-    const pkgbuild = await response.text()
-    const pkgverRegex = /pkgver=([0-9.]+)/
-    const match = pkgbuild.match(pkgverRegex)
+    const releases: Array<string> = await response.json()
 
-    if (match) {
-      return match[1]
+    if (releases.length > 0 && /^\d+\.\d+\.\d+$/.test(releases[0])) {
+      return releases[0]
     }
 
     return FALLBACK
@@ -29,5 +25,3 @@ export async function getVSCodeVersion() {
     clearTimeout(timeout)
   }
 }
-
-await getVSCodeVersion()

@@ -22,6 +22,7 @@ import {
 
 type TrendMetric = "requests" | "tokens" | "errors"
 type Granularity = "day" | "week" | "month" | "year"
+type WindowMode = "rolling" | "calendar"
 
 const METRIC_CONFIG: Record<
   TrendMetric,
@@ -67,6 +68,49 @@ function formatMonthBucket(bucket: string): string {
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
+/** Get the start of the current calendar period as ISO string */
+function getCalendarStart(granularity: Granularity): string {
+  const now = new Date()
+  switch (granularity) {
+    case "day":
+      now.setHours(0, 0, 0, 0)
+      return now.toISOString()
+    case "week": {
+      const dayOfWeek = now.getDay()
+      // Monday = 1, shift Sunday (0) to 7
+      const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      now.setDate(now.getDate() - diff)
+      now.setHours(0, 0, 0, 0)
+      return now.toISOString()
+    }
+    case "month":
+      now.setDate(1)
+      now.setHours(0, 0, 0, 0)
+      return now.toISOString()
+    case "year":
+      now.setMonth(0, 1)
+      now.setHours(0, 0, 0, 0)
+      return now.toISOString()
+  }
+}
+
+/** Max number of buckets for a calendar window */
+function getCalendarLimit(granularity: Granularity): number {
+  const now = new Date()
+  switch (granularity) {
+    case "day":
+      return now.getHours() + 1
+    case "week": {
+      const dayOfWeek = now.getDay()
+      return dayOfWeek === 0 ? 7 : dayOfWeek
+    }
+    case "month":
+      return now.getDate()
+    case "year":
+      return now.getMonth() + 1
+  }
+}
+
 export function RequestTrendCard({
   initialData,
 }: {
@@ -74,6 +118,7 @@ export function RequestTrendCard({
 }) {
   const [metric, setMetric] = useState<TrendMetric>("requests")
   const [granularity, setGranularity] = useState<Granularity>("day")
+  const [windowMode, setWindowMode] = useState<WindowMode>("rolling")
   const [data, setData] = useState(initialData)
   const [loading, setLoading] = useState(false)
 
@@ -104,12 +149,19 @@ export function RequestTrendCard({
   const tickFormat = formatBucketLabel[granularity]
   const tooltipFormat = formatBucketTooltip[granularity]
 
-  const fetchData = useCallback(async (g: Granularity) => {
+  const fetchData = useCallback(async (g: Granularity, mode: WindowMode) => {
     const gc = GRANULARITY_CONFIG[g]
     setLoading(true)
     try {
-      const result = await loadTimeSeries(gc.bucketMinutes, gc.limit)
-      setData(result)
+      if (mode === "calendar") {
+        const timeFrom = getCalendarStart(g)
+        const limit = getCalendarLimit(g)
+        const result = await loadTimeSeries(gc.bucketMinutes, Math.max(limit, 1), timeFrom)
+        setData(result)
+      } else {
+        const result = await loadTimeSeries(gc.bucketMinutes, gc.limit)
+        setData(result)
+      }
     } catch {
       // keep existing data on error
     } finally {
@@ -118,12 +170,12 @@ export function RequestTrendCard({
   }, [])
 
   useEffect(() => {
-    if (granularity === "day") {
+    if (granularity === "day" && windowMode === "rolling") {
       setData(initialData)
     } else {
-      void fetchData(granularity)
+      void fetchData(granularity, windowMode)
     }
-  }, [granularity, initialData, fetchData])
+  }, [granularity, windowMode, initialData, fetchData])
 
   return (
     <Card>
@@ -137,6 +189,22 @@ export function RequestTrendCard({
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
+              <Button
+                onClick={() => setWindowMode("rolling")}
+                size="sm"
+                variant={windowMode === "rolling" ? "default" : "ghost"}
+              >
+                滚动
+              </Button>
+              <Button
+                onClick={() => setWindowMode("calendar")}
+                size="sm"
+                variant={windowMode === "calendar" ? "default" : "ghost"}
+              >
+                自然
+              </Button>
+            </div>
             <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
               {(
                 Object.entries(GRANULARITY_CONFIG) as Array<

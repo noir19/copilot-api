@@ -1,5 +1,5 @@
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { ChevronLeft, ChevronRight, Search } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import type {
   ModelBreakdownRow,
@@ -7,7 +7,7 @@ import type {
   RequestLogFilter,
 } from "../../lib/dashboard-api"
 import { loadRequestCount, loadRequests } from "../../lib/dashboard-api"
-import { formatTimestamp } from "../../lib/format"
+import { formatNumber, formatTimestamp, formatUsd } from "../../lib/format"
 import { cn } from "../../lib/utils"
 import { Badge } from "../ui/badge"
 import { Button } from "../ui/button"
@@ -23,6 +23,7 @@ import {
 } from "../ui/table"
 
 const PAGE_SIZE = 20
+const EMPTY_FILTER: RequestLogFilter = {}
 
 export function RequestLogsPanel({
   allModels,
@@ -38,6 +39,9 @@ export function RequestLogsPanel({
   const [rows, setRows] = useState<Array<RecentRequestRow>>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [committedFilter, setCommittedFilter] =
+    useState<RequestLogFilter>(EMPTY_FILTER)
+  const [errorDetail, setErrorDetail] = useState<string | null>(null)
 
   const modelOptions = useMemo(() => {
     const set = new Set<string>()
@@ -47,7 +51,32 @@ export function RequestLogsPanel({
     return Array.from(set).sort()
   }, [allModels])
 
-  const filter = useMemo<RequestLogFilter>(() => {
+  // Per-model cost-per-token derived from model breakdown aggregate data
+  const costPerToken = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const m of allModels) {
+      if (
+        m.modelRaw &&
+        m.openRouterEstimatedCostUsd != null &&
+        m.totalTokens > 0
+      ) {
+        map.set(m.modelRaw, m.openRouterEstimatedCostUsd / m.totalTokens)
+      }
+    }
+    return map
+  }, [allModels])
+
+  function estimateCost(request: RecentRequestRow): number | null {
+    const rate = request.modelRaw
+      ? costPerToken.get(request.modelRaw)
+      : undefined
+    if (rate == null) return null
+    const tokens = (request.inputTokens ?? 0) + (request.outputTokens ?? 0)
+    if (tokens === 0) return null
+    return tokens * rate
+  }
+
+  const commitFilter = useCallback(() => {
     const f: RequestLogFilter = {}
     if (filterModel) f.model = filterModel
     if (filterRoute) f.route = filterRoute
@@ -55,14 +84,15 @@ export function RequestLogsPanel({
       f.status = filterStatus
     if (timeFrom) f.timeFrom = timeFrom
     if (timeTo) f.timeTo = timeTo
-    return f
+    setCommittedFilter(f)
+    setPage(0)
   }, [filterModel, filterRoute, filterStatus, timeFrom, timeTo])
 
   // Fetch rows for current page
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    loadRequests(page, PAGE_SIZE, filter)
+    loadRequests(page, PAGE_SIZE, committedFilter)
       .then((data) => {
         if (!cancelled) setRows(data)
       })
@@ -73,13 +103,13 @@ export function RequestLogsPanel({
     return () => {
       cancelled = true
     }
-  }, [page, filter])
+  }, [page, committedFilter])
 
   // Fetch total count independently (only on filter change)
   useEffect(() => {
     let cancelled = false
     setTotal(-1)
-    loadRequestCount(filter)
+    loadRequestCount(committedFilter)
       .then((count) => {
         if (!cancelled) setTotal(count)
       })
@@ -89,7 +119,7 @@ export function RequestLogsPanel({
     return () => {
       cancelled = true
     }
-  }, [filter])
+  }, [committedFilter])
 
   const countLoaded = total >= 0
   const countFailed = total === -2
@@ -105,6 +135,7 @@ export function RequestLogsPanel({
     setFilterStatus("")
     setTimeFrom("")
     setTimeTo("")
+    setCommittedFilter(EMPTY_FILTER)
     setPage(0)
   }
 
@@ -113,10 +144,7 @@ export function RequestLogsPanel({
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-3">
         <select
           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
-          onChange={(e) => {
-            setFilterModel(e.target.value)
-            setPage(0)
-          }}
+          onChange={(e) => setFilterModel(e.target.value)}
           value={filterModel}
         >
           <option value="">全部模型</option>
@@ -128,19 +156,14 @@ export function RequestLogsPanel({
         </select>
         <Input
           className="h-8 w-40"
-          onChange={(e) => {
-            setFilterRoute(e.target.value)
-            setPage(0)
-          }}
+          onChange={(e) => setFilterRoute(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && commitFilter()}
           placeholder="路由"
           value={filterRoute}
         />
         <select
           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
-          onChange={(e) => {
-            setFilterStatus(e.target.value)
-            setPage(0)
-          }}
+          onChange={(e) => setFilterStatus(e.target.value)}
           value={filterStatus}
         >
           <option value="">全部状态</option>
@@ -150,10 +173,7 @@ export function RequestLogsPanel({
         <span className="mx-0.5 h-4 w-px bg-slate-200" />
         <input
           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
-          onChange={(e) => {
-            setTimeFrom(e.target.value)
-            setPage(0)
-          }}
+          onChange={(e) => setTimeFrom(e.target.value)}
           type="datetime-local"
           step="1"
           value={timeFrom}
@@ -161,14 +181,15 @@ export function RequestLogsPanel({
         <span className="text-xs text-slate-400">至</span>
         <input
           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
-          onChange={(e) => {
-            setTimeTo(e.target.value)
-            setPage(0)
-          }}
+          onChange={(e) => setTimeTo(e.target.value)}
           type="datetime-local"
           step="1"
           value={timeTo}
         />
+        <Button onClick={commitFilter} size="sm">
+          <Search className="mr-1.5 h-3.5 w-3.5" />
+          查询
+        </Button>
         {hasFilter ? (
           <Button onClick={resetFilters} size="sm" variant="ghost">
             清除筛选
@@ -186,14 +207,14 @@ export function RequestLogsPanel({
           <TableHeader>
             <TableRow>
               <TableHead>时间</TableHead>
-              <TableHead>模型</TableHead>
+              <TableHead>请求模型</TableHead>
+              <TableHead>目标模型</TableHead>
               <TableHead>路由</TableHead>
               <TableHead>状态</TableHead>
-              <TableHead>延迟</TableHead>
-              <TableHead>总 Token</TableHead>
-              <TableHead>流式</TableHead>
-              <TableHead>账号类型</TableHead>
-              <TableHead>错误信息</TableHead>
+              <TableHead className="text-right">延迟</TableHead>
+              <TableHead className="text-right">总 Token</TableHead>
+              <TableHead className="text-right">估价</TableHead>
+              <TableHead>错误</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -207,6 +228,11 @@ export function RequestLogsPanel({
               rows.map((request) => (
                 <TableRow key={request.id}>
                   <TableCell>{formatTimestamp(request.timestamp)}</TableCell>
+                  <TableCell>
+                    <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                      {request.modelDisplay ?? "未知"}
+                    </code>
+                  </TableCell>
                   <TableCell>
                     <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
                       {request.modelRaw ?? "未知"}
@@ -229,12 +255,30 @@ export function RequestLogsPanel({
                       {request.statusCode}
                     </Badge>
                   </TableCell>
-                  <TableCell>{request.latencyMs ?? 0} ms</TableCell>
-                  <TableCell>{request.totalTokens ?? 0}</TableCell>
-                  <TableCell>{request.stream ? "是" : "否"}</TableCell>
-                  <TableCell>{request.accountType}</TableCell>
-                  <TableCell className="max-w-[260px] whitespace-normal break-words text-xs text-slate-600">
-                    {request.errorMessage ?? "-"}
+                  <TableCell className="text-right tabular-nums">
+                    {formatNumber(request.latencyMs ?? 0)} ms
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatNumber(request.totalTokens ?? 0)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {(() => {
+                      const cost = estimateCost(request)
+                      return cost != null ? formatUsd(cost) : "-"
+                    })()}
+                  </TableCell>
+                  <TableCell>
+                    {request.errorMessage ? (
+                      <button
+                        className="max-w-[120px] truncate text-xs text-rose-600 underline decoration-rose-300 hover:text-rose-700"
+                        onClick={() => setErrorDetail(request.errorMessage)}
+                        type="button"
+                      >
+                        {request.errorMessage}
+                      </button>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
@@ -280,6 +324,37 @@ export function RequestLogsPanel({
           </Button>
         </div>
       </div>
+
+      {errorDetail ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setErrorDetail(null)}
+          onKeyDown={(e) => e.key === "Escape" && setErrorDetail(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="mx-4 max-h-[70vh] w-full max-w-lg overflow-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            role="document"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-900">错误详情</h3>
+              <button
+                className="text-sm text-slate-400 hover:text-slate-600"
+                onClick={() => setErrorDetail(null)}
+                type="button"
+              >
+                关闭
+              </button>
+            </div>
+            <pre className="whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-4 text-xs text-slate-700">
+              {errorDetail}
+            </pre>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
