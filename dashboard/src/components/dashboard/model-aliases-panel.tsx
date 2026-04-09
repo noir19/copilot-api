@@ -258,7 +258,7 @@ export function ModelAliasesPanel({
                               </Badge>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="whitespace-nowrap">
                             {formatTimestamp(alias.updatedAt)}
                           </TableCell>
                           <TableCell>
