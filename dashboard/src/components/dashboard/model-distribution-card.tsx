@@ -19,6 +19,10 @@ const CHART_COLORS = [
   "#8b5cf6",
 ]
 
+function normalizeModelLabel(value: string | null): string {
+  return value?.trim().toLowerCase() || "未知模型"
+}
+
 export function ModelDistributionCard({
   requestModels,
 }: {
@@ -27,14 +31,53 @@ export function ModelDistributionCard({
   const [view, setView] = useState<DistributionView>("bar")
   const [metric, setMetric] = useState<DistributionMetric>("requests")
 
-  const chartData = requestModels.slice(0, 6).map((item) => ({
-    label: item.modelRaw ?? item.modelDisplay ?? "未知模型",
-    cost: item.openRouterEstimatedCostUsd ?? 0,
-    costStatus: item.openRouterEstimatedCostUsd === null ? "missing" : "ready",
-    openRouterModelId: item.openRouterModelId,
-    requests: item.requestCount,
-    tokens: item.totalTokens,
-  }))
+  const chartData = Array.from(
+    requestModels
+      .reduce<
+        Map<
+          string,
+          {
+            label: string
+            cost: number
+            costStatus: "missing" | "ready"
+            openRouterModelId: string | null
+            requests: number
+            tokens: number
+          }
+        >
+      >((map, item) => {
+        const label = normalizeModelLabel(item.modelRaw ?? item.modelDisplay)
+        const existing = map.get(label)
+        const nextCost = item.openRouterEstimatedCostUsd ?? 0
+        const nextCostStatus =
+          item.openRouterEstimatedCostUsd === null ? "missing" : "ready"
+
+        if (existing) {
+          existing.cost += nextCost
+          existing.costStatus =
+            existing.costStatus === "ready" || nextCostStatus === "ready"
+              ? "ready"
+              : "missing"
+          existing.openRouterModelId ??= item.openRouterModelId
+          existing.requests += item.requestCount
+          existing.tokens += item.totalTokens
+          return map
+        }
+
+        map.set(label, {
+          label,
+          cost: nextCost,
+          costStatus: nextCostStatus,
+          openRouterModelId: item.openRouterModelId,
+          requests: item.requestCount,
+          tokens: item.totalTokens,
+        })
+        return map
+      }, new Map())
+      .values(),
+  )
+    .sort((a, b) => b.requests - a.requests || b.tokens - a.tokens)
+    .slice(0, 6)
 
   const metricLabel =
     metric === "requests" ? "请求数" : metric === "tokens" ? "Token" : "估价"

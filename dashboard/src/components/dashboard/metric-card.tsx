@@ -36,13 +36,13 @@ export function MetricCard({
 
   return (
     <Card className={`ring-1 ${accent.ring}`}>
-      <CardContent className="flex items-center gap-3 py-3">
-        <div className={`shrink-0 rounded-lg p-2 ${accent.icon}`}>
-          <Icon className="h-4 w-4" />
+      <CardContent className="flex items-center gap-2.5 py-2.5">
+        <div className={`shrink-0 rounded-lg p-1.5 ${accent.icon}`}>
+          <Icon className="h-3.5 w-3.5" />
         </div>
         <div className="min-w-0 flex-1 text-right">
-          <p className="text-xs text-slate-500">{title}</p>
-          <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight text-slate-950">
+          <p className="text-[11px] text-slate-500">{title}</p>
+          <p className="mt-0.5 text-xl font-semibold tabular-nums tracking-tight text-slate-950 xl:text-[1.35rem]">
             {value}
           </p>
         </div>

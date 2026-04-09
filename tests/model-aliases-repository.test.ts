@@ -63,6 +63,28 @@ describe("model aliases repository", () => {
     expect(updated.enabled).toBe(false)
   })
 
+  test("normalizes alias source and target models to lowercase", async () => {
+    const repository = createModelAliasRepository(db)
+
+    const created = await repository.create({
+      sourceModel: "Haiku",
+      targetModel: "Claude-Haiku-4-5",
+      enabled: true,
+    })
+
+    expect(created.sourceModel).toBe("haiku")
+    expect(created.targetModel).toBe("claude-haiku-4-5")
+
+    const updated = await repository.update(created.id, {
+      sourceModel: "GPT-5.4",
+      targetModel: "OPENAI/GPT-5.4",
+      enabled: true,
+    })
+
+    expect(updated.sourceModel).toBe("gpt-5.4")
+    expect(updated.targetModel).toBe("openai/gpt-5.4")
+  })
+
   test("deletes aliases", async () => {
     const repository = createModelAliasRepository(db)
     const created = await repository.create({

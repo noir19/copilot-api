@@ -10,6 +10,12 @@ export interface RequestLogRecord {
   inputTokens: number | null
   outputTokens: number | null
   totalTokens: number | null
+  pricingSource: string | null
+  pricingModelId: string | null
+  pricePromptUsdPerToken: number | null
+  priceCompletionUsdPerToken: number | null
+  priceRequestUsd: number | null
+  estimatedCostUsd: number | null
   errorMessage: string | null
   accountType: string
 }

@@ -104,6 +104,8 @@ function createReadOnlyApp(): Hono {
           totalRequests: 10,
           successRate: 90,
           errorRate: 10,
+          inputTokens: 444,
+          outputTokens: 790,
           totalTokens: 1234,
           averageLatencyMs: 180,
           openRouterEstimatedCostUsd: 1.2345,
@@ -129,6 +131,8 @@ function createReadOnlyApp(): Hono {
           {
             bucket: "2026-04-08T00:00:00Z",
             requests: 7,
+            inputTokens: 400,
+            outputTokens: 600,
             tokens: 1000,
             errors: 1,
           },
@@ -164,6 +168,12 @@ function createReadOnlyApp(): Hono {
             inputTokens: 10,
             outputTokens: 20,
             totalTokens: 30,
+            pricingSource: "openrouter",
+            pricingModelId: "anthropic/claude-sonnet-4.5",
+            pricePromptUsdPerToken: 0.000003,
+            priceCompletionUsdPerToken: 0.000015,
+            priceRequestUsd: 0.0004,
+            estimatedCostUsd: 0.00073,
             errorMessage: null,
             accountType: "individual",
           },
@@ -252,6 +262,8 @@ function createMutableMappingsApp(): Hono {
           totalRequests: 0,
           successRate: 0,
           errorRate: 0,
+          inputTokens: 0,
+          outputTokens: 0,
           totalTokens: 0,
           averageLatencyMs: 0,
           openRouterEstimatedCostUsd: 0,
@@ -342,9 +354,11 @@ describe("dashboard route", () => {
 
     const requestsResponse = await app.request("/api/dashboard/requests")
     const requests = (await requestsResponse.json()) as DashboardResponse<
-      Array<unknown>
+      Array<{ estimatedCostUsd: number; pricingSource: string | null }>
     >
     expect(requests.data).toHaveLength(1)
+    expect(requests.data[0]?.estimatedCostUsd).toBe(0.00073)
+    expect(requests.data[0]?.pricingSource).toBe("openrouter")
 
     const aliasesResponse = await app.request("/api/dashboard/aliases")
     const aliases = (await aliasesResponse.json()) as DashboardResponse<

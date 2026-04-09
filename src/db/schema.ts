@@ -1,5 +1,37 @@
 import type { Database } from "bun:sqlite"
 
+function addColumnIfMissing(
+  db: Database,
+  tableName: string,
+  columnName: string,
+  definition: string,
+): void {
+  const columns = db
+    .query<{ name: string }, []>(`PRAGMA table_info(${tableName})`)
+    .all()
+    .map((column) => column.name)
+
+  if (columns.includes(columnName)) {
+    return
+  }
+
+  db.run(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`)
+}
+
+function normalizeStoredModelData(db: Database): void {
+  db.run(
+    `UPDATE request_logs
+     SET model_raw = lower(trim(model_raw)),
+         model_display = lower(trim(model_display))
+     WHERE model_raw IS NOT NULL OR model_display IS NOT NULL`,
+  )
+  db.run(
+    `UPDATE model_aliases
+     SET source_model = lower(trim(source_model)),
+         target_model = lower(trim(target_model))`,
+  )
+}
+
 export function initDatabase(db: Database): void {
   db.run("PRAGMA journal_mode = WAL;")
 
@@ -18,6 +50,12 @@ export function initDatabase(db: Database): void {
       input_tokens INTEGER,
       output_tokens INTEGER,
       total_tokens INTEGER,
+      pricing_source TEXT,
+      pricing_model_id TEXT,
+      price_prompt_usd_per_token REAL,
+      price_completion_usd_per_token REAL,
+      price_request_usd REAL,
+      estimated_cost_usd REAL,
       error_message TEXT,
       account_type TEXT NOT NULL
     );
@@ -61,4 +99,17 @@ export function initDatabase(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_openrouter_pricing_cache_snapshot_date
       ON openrouter_pricing_cache(snapshot_date);
   `)
+
+  addColumnIfMissing(db, "request_logs", "pricing_source", "TEXT")
+  addColumnIfMissing(db, "request_logs", "pricing_model_id", "TEXT")
+  addColumnIfMissing(db, "request_logs", "price_prompt_usd_per_token", "REAL")
+  addColumnIfMissing(
+    db,
+    "request_logs",
+    "price_completion_usd_per_token",
+    "REAL",
+  )
+  addColumnIfMissing(db, "request_logs", "price_request_usd", "REAL")
+  addColumnIfMissing(db, "request_logs", "estimated_cost_usd", "REAL")
+  normalizeStoredModelData(db)
 }

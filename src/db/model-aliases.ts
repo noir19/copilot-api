@@ -28,13 +28,17 @@ interface ModelAliasRow {
   updated_at: string
 }
 
+function normalizeModelId(value: string): string {
+  return value.trim().toLowerCase()
+}
+
 function toRecord(row: ModelAliasRow): ModelAliasRecord {
   return {
     createdAt: row.created_at,
     enabled: row.enabled === 1,
     id: row.id,
-    sourceModel: row.source_model,
-    targetModel: row.target_model,
+    sourceModel: normalizeModelId(row.source_model),
+    targetModel: normalizeModelId(row.target_model),
     updatedAt: row.updated_at,
   }
 }
@@ -63,6 +67,8 @@ export function createModelAliasRepository(
     create(input: CreateModelAliasInput): Promise<ModelAliasRecord> {
       const now = new Date().toISOString()
       const id = randomUUID()
+      const sourceModel = normalizeModelId(input.sourceModel)
+      const targetModel = normalizeModelId(input.targetModel)
 
       db.query(
         `INSERT INTO model_aliases (
@@ -77,8 +83,8 @@ export function createModelAliasRepository(
         $created_at: now,
         $enabled: input.enabled ? 1 : 0,
         $id: id,
-        $source_model: input.sourceModel,
-        $target_model: input.targetModel,
+        $source_model: sourceModel,
+        $target_model: targetModel,
         $updated_at: now,
       })
 
@@ -86,8 +92,8 @@ export function createModelAliasRepository(
         createdAt: now,
         enabled: input.enabled,
         id,
-        sourceModel: input.sourceModel,
-        targetModel: input.targetModel,
+        sourceModel,
+        targetModel,
         updatedAt: now,
       })
     },
@@ -102,6 +108,8 @@ export function createModelAliasRepository(
       }
 
       const updatedAt = new Date().toISOString()
+      const sourceModel = normalizeModelId(input.sourceModel)
+      const targetModel = normalizeModelId(input.targetModel)
 
       db.query(
         `UPDATE model_aliases
@@ -113,16 +121,16 @@ export function createModelAliasRepository(
       ).run({
         $enabled: input.enabled ? 1 : 0,
         $id: id,
-        $source_model: input.sourceModel,
-        $target_model: input.targetModel,
+        $source_model: sourceModel,
+        $target_model: targetModel,
         $updated_at: updatedAt,
       })
 
       return {
         ...existing,
         enabled: input.enabled,
-        sourceModel: input.sourceModel,
-        targetModel: input.targetModel,
+        sourceModel,
+        targetModel,
         updatedAt,
       }
     },

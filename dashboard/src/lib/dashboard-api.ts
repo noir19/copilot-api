@@ -1,7 +1,9 @@
 export interface RequestOverview {
   averageLatencyMs: number
   errorRate: number
+  inputTokens: number
   openRouterEstimatedCostUsd: number
+  outputTokens: number
   successRate: number
   totalRequests: number
   totalTokens: number
@@ -43,12 +45,18 @@ export interface ModelBreakdownRow {
 
 export interface RecentRequestRow {
   accountType: string
+  estimatedCostUsd: number | null
   errorMessage: string | null
   id: string
   inputTokens: number | null
   latencyMs: number | null
   modelDisplay: string | null
   modelRaw: string | null
+  priceCompletionUsdPerToken: number | null
+  pricePromptUsdPerToken: number | null
+  priceRequestUsd: number | null
+  pricingModelId: string | null
+  pricingSource: string | null
   outputTokens: number | null
   route: string
   status: "error" | "success"
@@ -101,6 +109,8 @@ export interface SupportedModel {
 export interface TimeSeriesPoint {
   bucket: string
   requests: number
+  inputTokens: number
+  outputTokens: number
   tokens: number
   errors: number
 }

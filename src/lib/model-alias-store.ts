@@ -19,6 +19,10 @@ interface ModelAliasSnapshot {
   version: number
 }
 
+function normalizeModelId(value: string): string {
+  return value.trim().toLowerCase()
+}
+
 export function createModelAliasStore(repository: ModelAliasRepository) {
   let records = new Map<string, ModelAliasRecord>()
   let version = 0
@@ -30,7 +34,10 @@ export function createModelAliasStore(repository: ModelAliasRepository) {
   const rebuild = (nextRecords: Array<ModelAliasRecord>) => {
     const enabledRecords = nextRecords.filter((record) => record.enabled)
     records = new Map(
-      enabledRecords.map((record) => [record.sourceModel, record]),
+      enabledRecords.map((record) => [
+        normalizeModelId(record.sourceModel),
+        record,
+      ]),
     )
     totalCount = nextRecords.length
     enabledCount = enabledRecords.length
@@ -55,7 +62,10 @@ export function createModelAliasStore(repository: ModelAliasRepository) {
     },
 
     resolveTargetModel(sourceModel: string): string {
-      return records.get(sourceModel)?.targetModel ?? sourceModel
+      const normalizedSourceModel = normalizeModelId(sourceModel)
+      return (
+        records.get(normalizedSourceModel)?.targetModel ?? normalizedSourceModel
+      )
     },
 
     getSnapshot(): ModelAliasSnapshot {

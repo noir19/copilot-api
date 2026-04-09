@@ -19,11 +19,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableWrapper,
 } from "../ui/table"
 
 const PAGE_SIZE = 20
 const EMPTY_FILTER: RequestLogFilter = {}
+const LOG_TABLE_MIN_WIDTH = "min-w-[1520px]"
 
 export function RequestLogsPanel({
   allModels,
@@ -44,6 +44,8 @@ export function RequestLogsPanel({
   const [errorDetail, setErrorDetail] = useState<string | null>(null)
   const [justSearched, setJustSearched] = useState(false)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const headerScrollRef = useRef<HTMLDivElement | null>(null)
+  const bodyScrollRef = useRef<HTMLDivElement | null>(null)
 
   const modelOptions = useMemo(() => {
     const set = new Set<string>()
@@ -52,31 +54,6 @@ export function RequestLogsPanel({
     }
     return Array.from(set).sort()
   }, [allModels])
-
-  // Per-model cost-per-token derived from model breakdown aggregate data
-  const costPerToken = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const m of allModels) {
-      if (
-        m.modelRaw &&
-        m.openRouterEstimatedCostUsd != null &&
-        m.totalTokens > 0
-      ) {
-        map.set(m.modelRaw, m.openRouterEstimatedCostUsd / m.totalTokens)
-      }
-    }
-    return map
-  }, [allModels])
-
-  function estimateCost(request: RecentRequestRow): number | null {
-    const rate = request.modelRaw
-      ? costPerToken.get(request.modelRaw)
-      : undefined
-    if (rate == null) return null
-    const tokens = (request.inputTokens ?? 0) + (request.outputTokens ?? 0)
-    if (tokens === 0) return null
-    return tokens * rate
-  }
 
   const commitFilter = useCallback(() => {
     const f: RequestLogFilter = {}
@@ -135,6 +112,40 @@ export function RequestLogsPanel({
     return () => document.removeEventListener("keydown", handler)
   }, [errorDetail])
 
+  useEffect(() => {
+    const header = headerScrollRef.current
+    const body = bodyScrollRef.current
+    if (!header || !body) return
+
+    let syncingFromHeader = false
+    let syncingFromBody = false
+
+    const syncFromHeader = () => {
+      if (syncingFromBody) {
+        syncingFromBody = false
+        return
+      }
+      syncingFromHeader = true
+      body.scrollLeft = header.scrollLeft
+    }
+
+    const syncFromBody = () => {
+      if (syncingFromHeader) {
+        syncingFromHeader = false
+        return
+      }
+      syncingFromBody = true
+      header.scrollLeft = body.scrollLeft
+    }
+
+    header.addEventListener("scroll", syncFromHeader, { passive: true })
+    body.addEventListener("scroll", syncFromBody, { passive: true })
+    return () => {
+      header.removeEventListener("scroll", syncFromHeader)
+      body.removeEventListener("scroll", syncFromBody)
+    }
+  }, [])
+
   const countLoaded = total >= 0
   const countFailed = total === -2
   const totalPages = countLoaded ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : 0
@@ -154,8 +165,8 @@ export function RequestLogsPanel({
   }
 
   return (
-    <div className="flex h-[calc(100vh-13rem)] flex-col rounded-2xl border border-slate-200/70 bg-white">
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-3">
+    <div className="flex min-h-[60vh] flex-col rounded-2xl border border-slate-200/70 bg-white">
+      <div className="sticky top-[10.25rem] z-20 flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-4 py-3">
         <select
           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
           onChange={(e) => setFilterModel(e.target.value)}
@@ -224,95 +235,161 @@ export function RequestLogsPanel({
         ) : null}
       </div>
 
-      <TableWrapper className="relative flex-1 overflow-auto">
+      <div className="sticky top-[14.25rem] z-10 border-b border-slate-200 bg-slate-50">
+        <div ref={headerScrollRef} className="overflow-x-auto">
+          <Table className={`${LOG_TABLE_MIN_WIDTH} table-fixed`}>
+            <colgroup>
+              <col className="w-[150px]" />
+              <col className="w-[170px]" />
+              <col className="w-[170px]" />
+              <col className="w-[150px]" />
+              <col className="w-[110px]" />
+              <col className="w-[110px]" />
+              <col className="w-[110px]" />
+              <col className="w-[110px]" />
+              <col className="w-[110px]" />
+              <col className="w-[110px]" />
+              <col className="w-[220px]" />
+            </colgroup>
+            <TableHeader className="bg-slate-50">
+              <TableRow className="hover:bg-slate-50">
+                <TableHead className="whitespace-nowrap bg-slate-50">
+                  时间
+                </TableHead>
+                <TableHead className="whitespace-nowrap bg-slate-50">
+                  请求模型
+                </TableHead>
+                <TableHead className="whitespace-nowrap bg-slate-50">
+                  目标模型
+                </TableHead>
+                <TableHead className="whitespace-nowrap bg-slate-50">
+                  路由
+                </TableHead>
+                <TableHead className="whitespace-nowrap bg-slate-50">
+                  状态
+                </TableHead>
+                <TableHead className="text-right whitespace-nowrap bg-slate-50">
+                  延迟
+                </TableHead>
+                <TableHead className="text-right whitespace-nowrap bg-slate-50">
+                  输入 Token
+                </TableHead>
+                <TableHead className="text-right whitespace-nowrap bg-slate-50">
+                  输出 Token
+                </TableHead>
+                <TableHead className="text-right whitespace-nowrap bg-slate-50">
+                  总 Token
+                </TableHead>
+                <TableHead className="text-right whitespace-nowrap bg-slate-50">
+                  估价
+                </TableHead>
+                <TableHead className="whitespace-nowrap bg-slate-50">
+                  错误
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+          </Table>
+        </div>
+      </div>
+
+      <div className="relative flex-1 overflow-hidden rounded-b-xl border-x border-b border-slate-200">
         {loading ? (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60">
             <span className="text-sm text-slate-500">加载中...</span>
           </div>
         ) : null}
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>时间</TableHead>
-              <TableHead>请求模型</TableHead>
-              <TableHead>目标模型</TableHead>
-              <TableHead>路由</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead className="text-right">延迟</TableHead>
-              <TableHead className="text-right">总 Token</TableHead>
-              <TableHead className="text-right">估价</TableHead>
-              <TableHead>错误</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 && !loading ? (
-              <TableRow>
-                <TableCell className="py-6 text-slate-500" colSpan={9}>
-                  {hasFilter ? "没有匹配的日志记录。" : "还没有日志数据。"}
-                </TableCell>
-              </TableRow>
-            ) : (
-              rows.map((request) => (
-                <TableRow key={request.id}>
-                  <TableCell>{formatTimestamp(request.timestamp)}</TableCell>
-                  <TableCell>
-                    <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
-                      {request.modelDisplay ?? "未知"}
-                    </code>
-                  </TableCell>
-                  <TableCell>
-                    <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
-                      {request.modelRaw ?? "未知"}
-                    </code>
-                  </TableCell>
-                  <TableCell>
-                    <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
-                      {request.route}
-                    </code>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      className={cn(
-                        request.status === "success"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-rose-50 text-rose-700",
-                      )}
-                    >
-                      {request.status === "success" ? "成功" : "失败"}{" "}
-                      {request.statusCode}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatNumber(request.latencyMs ?? 0)} ms
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatNumber(request.totalTokens ?? 0)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {(() => {
-                      const cost = estimateCost(request)
-                      return cost != null ? formatUsd(cost) : "-"
-                    })()}
-                  </TableCell>
-                  <TableCell>
-                    {request.errorMessage ? (
-                      <button
-                        className="max-w-[120px] truncate text-xs text-rose-600 underline decoration-rose-300 hover:text-rose-700"
-                        onClick={() => setErrorDetail(request.errorMessage)}
-                        type="button"
-                      >
-                        {request.errorMessage}
-                      </button>
-                    ) : (
-                      <span className="text-slate-400">-</span>
-                    )}
+        <div ref={bodyScrollRef} className="h-full overflow-x-auto">
+          <Table className={`${LOG_TABLE_MIN_WIDTH} table-fixed`}>
+            <colgroup>
+              <col className="w-[150px]" />
+              <col className="w-[170px]" />
+              <col className="w-[170px]" />
+              <col className="w-[150px]" />
+              <col className="w-[110px]" />
+              <col className="w-[110px]" />
+              <col className="w-[110px]" />
+              <col className="w-[110px]" />
+              <col className="w-[110px]" />
+              <col className="w-[110px]" />
+              <col className="w-[220px]" />
+            </colgroup>
+            <TableBody>
+              {rows.length === 0 && !loading ? (
+                <TableRow>
+                  <TableCell className="py-6 text-slate-500" colSpan={11}>
+                    {hasFilter ? "没有匹配的日志记录。" : "还没有日志数据。"}
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableWrapper>
+              ) : (
+                rows.map((request) => (
+                  <TableRow key={request.id}>
+                    <TableCell className="whitespace-nowrap">
+                      {formatTimestamp(request.timestamp)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <code className="inline-block max-w-[150px] overflow-hidden text-ellipsis rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                        {request.modelDisplay ?? "未知"}
+                      </code>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <code className="inline-block max-w-[150px] overflow-hidden text-ellipsis rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                        {request.modelRaw ?? "未知"}
+                      </code>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <code className="inline-block max-w-[130px] overflow-hidden text-ellipsis rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                        {request.route}
+                      </code>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <Badge
+                        className={cn(
+                          request.status === "success"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-rose-50 text-rose-700",
+                        )}
+                      >
+                        {request.status === "success" ? "成功" : "失败"}{" "}
+                        {request.statusCode}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(request.latencyMs ?? 0)} ms
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(request.inputTokens ?? 0)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(request.outputTokens ?? 0)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(request.totalTokens ?? 0)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {request.estimatedCostUsd != null
+                        ? formatUsd(request.estimatedCostUsd)
+                        : "-"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {request.errorMessage ? (
+                        <button
+                          className="max-w-[180px] overflow-hidden text-ellipsis text-xs text-rose-600 underline decoration-rose-300 hover:text-rose-700"
+                          onClick={() => setErrorDetail(request.errorMessage)}
+                          type="button"
+                        >
+                          {request.errorMessage}
+                        </button>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
 
       <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2">
         <p className="text-sm text-slate-500">

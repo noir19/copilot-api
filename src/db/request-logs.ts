@@ -3,11 +3,18 @@ import type { Database } from "bun:sqlite"
 import { randomUUID } from "node:crypto"
 
 import type { RequestLogRecord } from "~/db/request-sink"
+import { roundUsd } from "~/services/openrouter/pricing"
+
+function normalizeModelValue(value: string | null): string | null {
+  return value?.trim().toLowerCase() ?? null
+}
 
 export interface RequestOverview {
   totalRequests: number
   successRate: number
   errorRate: number
+  inputTokens: number
+  outputTokens: number
   totalTokens: number
   averageLatencyMs: number
   openRouterEstimatedCostUsd: number
@@ -32,16 +39,29 @@ export interface RecentRequestRow extends RequestLogRecord {
 export interface TimeSeriesPoint {
   bucket: string
   requests: number
+  inputTokens: number
+  outputTokens: number
   tokens: number
   errors: number
+}
+
+export interface RequestPricingSnapshot {
+  pricingSource: string
+  pricingModelId: string
+  pricePromptUsdPerToken: number
+  priceCompletionUsdPerToken: number
+  priceRequestUsd: number
 }
 
 interface OverviewRow {
   total_requests: number
   success_count: number
   error_count: number
+  input_tokens: number
+  output_tokens: number
   total_tokens: number
   average_latency_ms: number | null
+  estimated_cost_usd: number
 }
 
 interface ModelBreakdownDbRow {
@@ -52,6 +72,8 @@ interface ModelBreakdownDbRow {
   output_tokens: number
   total_tokens: number
   last_requested_at: string
+  estimated_cost_usd: number | null
+  pricing_model_id: string | null
 }
 
 interface RecentRequestDbRow {
@@ -67,6 +89,12 @@ interface RecentRequestDbRow {
   input_tokens: number | null
   output_tokens: number | null
   total_tokens: number | null
+  pricing_source: string | null
+  pricing_model_id: string | null
+  price_prompt_usd_per_token: number | null
+  price_completion_usd_per_token: number | null
+  price_request_usd: number | null
+  estimated_cost_usd: number | null
   error_message: string | null
   account_type: string
 }
@@ -85,9 +113,37 @@ function toRecentRequest(row: RecentRequestDbRow): RecentRequestRow {
     inputTokens: row.input_tokens,
     outputTokens: row.output_tokens,
     totalTokens: row.total_tokens,
+    pricingSource: row.pricing_source,
+    pricingModelId: row.pricing_model_id,
+    pricePromptUsdPerToken: row.price_prompt_usd_per_token,
+    priceCompletionUsdPerToken: row.price_completion_usd_per_token,
+    priceRequestUsd: row.price_request_usd,
+    estimatedCostUsd: row.estimated_cost_usd,
     errorMessage: row.error_message,
     accountType: row.account_type,
   }
+}
+
+function toEstimatedCostUsd(record: {
+  inputTokens: number | null
+  outputTokens: number | null
+  pricePromptUsdPerToken: number | null
+  priceCompletionUsdPerToken: number | null
+  priceRequestUsd: number | null
+}): number | null {
+  if (
+    record.pricePromptUsdPerToken == null ||
+    record.priceCompletionUsdPerToken == null ||
+    record.priceRequestUsd == null
+  ) {
+    return null
+  }
+
+  return roundUsd(
+    record.priceRequestUsd +
+      (record.inputTokens ?? 0) * record.pricePromptUsdPerToken +
+      (record.outputTokens ?? 0) * record.priceCompletionUsdPerToken,
+  )
 }
 
 function insertRequestLogs(
@@ -109,6 +165,12 @@ function insertRequestLogs(
       input_tokens,
       output_tokens,
       total_tokens,
+      pricing_source,
+      pricing_model_id,
+      price_prompt_usd_per_token,
+      price_completion_usd_per_token,
+      price_request_usd,
+      estimated_cost_usd,
       error_message,
       account_type
     ) VALUES (
@@ -125,6 +187,12 @@ function insertRequestLogs(
       $input_tokens,
       $output_tokens,
       $total_tokens,
+      $pricing_source,
+      $pricing_model_id,
+      $price_prompt_usd_per_token,
+      $price_completion_usd_per_token,
+      $price_request_usd,
+      $estimated_cost_usd,
       $error_message,
       $account_type
     )`,
@@ -137,8 +205,8 @@ function insertRequestLogs(
         $request_id: null,
         $timestamp: record.timestamp,
         $route: record.route,
-        $model_raw: record.modelRaw,
-        $model_display: record.modelDisplay,
+        $model_raw: normalizeModelValue(record.modelRaw),
+        $model_display: normalizeModelValue(record.modelDisplay),
         $stream: record.stream ? 1 : 0,
         $status: record.status,
         $status_code: record.statusCode,
@@ -146,6 +214,12 @@ function insertRequestLogs(
         $input_tokens: record.inputTokens,
         $output_tokens: record.outputTokens,
         $total_tokens: record.totalTokens,
+        $pricing_source: record.pricingSource,
+        $pricing_model_id: record.pricingModelId,
+        $price_prompt_usd_per_token: record.pricePromptUsdPerToken,
+        $price_completion_usd_per_token: record.priceCompletionUsdPerToken,
+        $price_request_usd: record.priceRequestUsd,
+        $estimated_cost_usd: record.estimatedCostUsd,
         $error_message: record.errorMessage,
         $account_type: record.accountType,
       })
@@ -162,8 +236,11 @@ function readOverview(db: Database): RequestOverview {
          COUNT(*) AS total_requests,
          SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS success_count,
          SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS error_count,
+         COALESCE(SUM(input_tokens), 0) AS input_tokens,
+         COALESCE(SUM(output_tokens), 0) AS output_tokens,
          COALESCE(SUM(total_tokens), 0) AS total_tokens,
-         AVG(latency_ms) AS average_latency_ms
+         AVG(latency_ms) AS average_latency_ms,
+         COALESCE(SUM(estimated_cost_usd), 0) AS estimated_cost_usd
        FROM request_logs`,
     )
     .get()
@@ -176,9 +253,11 @@ function readOverview(db: Database): RequestOverview {
     totalRequests,
     successRate: totalRequests > 0 ? (successCount / totalRequests) * 100 : 0,
     errorRate: totalRequests > 0 ? (errorCount / totalRequests) * 100 : 0,
+    inputTokens: row?.input_tokens ?? 0,
+    outputTokens: row?.output_tokens ?? 0,
     totalTokens: row?.total_tokens ?? 0,
     averageLatencyMs: Math.round(row?.average_latency_ms ?? 0),
-    openRouterEstimatedCostUsd: 0,
+    openRouterEstimatedCostUsd: roundUsd(row?.estimated_cost_usd ?? 0),
   }
 }
 
@@ -192,6 +271,11 @@ function readModelBreakdown(db: Database): Array<ModelBreakdownRow> {
          COALESCE(SUM(input_tokens), 0) AS input_tokens,
          COALESCE(SUM(output_tokens), 0) AS output_tokens,
          COALESCE(SUM(total_tokens), 0) AS total_tokens,
+         CASE
+           WHEN COUNT(estimated_cost_usd) = 0 THEN NULL
+           ELSE SUM(estimated_cost_usd)
+         END AS estimated_cost_usd,
+         MAX(pricing_model_id) AS pricing_model_id,
          MAX(timestamp) AS last_requested_at
        FROM request_logs
        GROUP BY model_display, model_raw
@@ -207,8 +291,9 @@ function readModelBreakdown(db: Database): Array<ModelBreakdownRow> {
     outputTokens: row.output_tokens,
     totalTokens: row.total_tokens,
     lastRequestedAt: row.last_requested_at,
-    openRouterEstimatedCostUsd: null,
-    openRouterModelId: null,
+    openRouterEstimatedCostUsd:
+      row.estimated_cost_usd == null ? null : roundUsd(row.estimated_cost_usd),
+    openRouterModelId: row.pricing_model_id,
   }))
 }
 
@@ -275,6 +360,12 @@ function readFilteredRequests(
          input_tokens,
          output_tokens,
          total_tokens,
+         pricing_source,
+         pricing_model_id,
+         price_prompt_usd_per_token,
+         price_completion_usd_per_token,
+         price_request_usd,
+         estimated_cost_usd,
          error_message,
          account_type
        FROM request_logs
@@ -300,6 +391,8 @@ function countFilteredRequests(db: Database, filter: RequestLogFilter): number {
 interface TimeSeriesDbRow {
   bucket: string
   requests: number
+  input_tokens: number
+  output_tokens: number
   tokens: number
   errors: number
 }
@@ -366,6 +459,8 @@ function fillMissingTimeSeriesBuckets(
     buckets.push({
       bucket,
       requests: row?.requests ?? 0,
+      inputTokens: row?.input_tokens ?? 0,
+      outputTokens: row?.output_tokens ?? 0,
       tokens: row?.tokens ?? 0,
       errors: row?.errors ?? 0,
     })
@@ -394,10 +489,12 @@ function readTimeSeries(
   if (timeFrom) params.push(timeFrom)
 
   const rows = db
-    .query<TimeSeriesDbRow, Array<unknown>>(
+    .query<TimeSeriesDbRow, Array<string | number>>(
       `SELECT
          strftime('${format}', timestamp) AS bucket,
          COUNT(*) AS requests,
+         COALESCE(SUM(input_tokens), 0) AS input_tokens,
+         COALESCE(SUM(output_tokens), 0) AS output_tokens,
          COALESCE(SUM(total_tokens), 0) AS tokens,
          SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS errors
        FROM request_logs
@@ -409,6 +506,78 @@ function readTimeSeries(
     .all(...params)
 
   return fillMissingTimeSeriesBuckets(rows, bucketMinutes, limit)
+}
+
+async function backfillMissingPricing(
+  db: Database,
+  resolvePricing: (
+    model: string | null,
+  ) => Promise<RequestPricingSnapshot | null>,
+): Promise<number> {
+  const rows = db
+    .query<
+      {
+        id: string
+        model_raw: string | null
+        input_tokens: number | null
+        output_tokens: number | null
+      },
+      []
+    >(
+      `SELECT
+         id,
+         model_raw,
+         input_tokens,
+         output_tokens
+       FROM request_logs
+       WHERE estimated_cost_usd IS NULL
+         AND model_raw IS NOT NULL
+         AND (
+           input_tokens IS NOT NULL OR
+           output_tokens IS NOT NULL
+         )`,
+    )
+    .all()
+
+  const update = db.query(
+    `UPDATE request_logs
+     SET pricing_source = $pricing_source,
+         pricing_model_id = $pricing_model_id,
+         price_prompt_usd_per_token = $price_prompt_usd_per_token,
+         price_completion_usd_per_token = $price_completion_usd_per_token,
+         price_request_usd = $price_request_usd,
+         estimated_cost_usd = $estimated_cost_usd
+     WHERE id = $id`,
+  )
+
+  let updated = 0
+  for (const row of rows) {
+    const pricing = await resolvePricing(row.model_raw)
+    if (!pricing) {
+      continue
+    }
+
+    const estimatedCostUsd = toEstimatedCostUsd({
+      inputTokens: row.input_tokens,
+      outputTokens: row.output_tokens,
+      pricePromptUsdPerToken: pricing.pricePromptUsdPerToken,
+      priceCompletionUsdPerToken: pricing.priceCompletionUsdPerToken,
+      priceRequestUsd: pricing.priceRequestUsd,
+    })
+
+    update.run({
+      $id: row.id,
+      $pricing_source: pricing.pricingSource,
+      $pricing_model_id: pricing.pricingModelId,
+      $price_prompt_usd_per_token: pricing.pricePromptUsdPerToken,
+      $price_completion_usd_per_token: pricing.priceCompletionUsdPerToken,
+      $price_request_usd: pricing.priceRequestUsd,
+      $estimated_cost_usd: estimatedCostUsd,
+    })
+    updated += 1
+  }
+
+  return updated
 }
 
 export function createRequestLogRepository(db: Database) {
@@ -469,6 +638,14 @@ export function createRequestLogRepository(db: Database) {
           options.timeFrom,
         ),
       )
+    },
+
+    backfillMissingPricing(
+      resolvePricing: (
+        model: string | null,
+      ) => Promise<RequestPricingSnapshot | null>,
+    ): Promise<number> {
+      return backfillMissingPricing(db, resolvePricing)
     },
   }
 }

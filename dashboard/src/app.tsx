@@ -1,10 +1,12 @@
 import { Activity, Bot, FileText, RefreshCcw, Settings2 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { ModelConfigPanel } from "./components/dashboard/model-config-panel"
-import { OverviewPanel } from "./components/dashboard/overview-panel"
+import {
+  OverviewMetrics,
+  OverviewPanel,
+} from "./components/dashboard/overview-panel"
 import { RequestLogsPanel } from "./components/dashboard/request-logs-panel"
 import { SettingsPanel } from "./components/dashboard/settings-panel"
-import { Badge } from "./components/ui/badge"
 import { Button } from "./components/ui/button"
 import { Card, CardContent } from "./components/ui/card"
 import {
@@ -13,7 +15,6 @@ import {
   loadAliases,
   loadDashboardData,
 } from "./lib/dashboard-api"
-import { formatNumber } from "./lib/format"
 import { cn } from "./lib/utils"
 
 type DashboardTab = "overview" | "logs" | "models" | "settings"
@@ -30,11 +31,9 @@ const TAB_ITEMS: Array<{
 ]
 
 function DashboardHeader({
-  dashboardData,
   isRefreshing,
   onRefresh,
 }: {
-  dashboardData: DashboardData | null
   isRefreshing: boolean
   onRefresh: () => void
 }) {
@@ -63,15 +62,6 @@ function DashboardHeader({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Badge className="bg-emerald-500 text-white">
-            <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-            运行中
-          </Badge>
-          <Badge className="bg-white text-slate-600">
-            {dashboardData
-              ? `${formatNumber(dashboardData.overview.totalRequests)} 次请求`
-              : "加载中"}
-          </Badge>
           <Button
             disabled={isRefreshing}
             onClick={onRefresh}
@@ -219,12 +209,18 @@ export function App() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.14),_transparent_30%),linear-gradient(180deg,_#fffdf8_0%,_#f8fafc_42%,_#eef2ff_100%)] text-slate-900">
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
-        <DashboardHeader
-          dashboardData={dashboardData}
-          isRefreshing={isRefreshing}
-          onRefresh={() => void refresh()}
-        />
-        <DashboardTabs activeTab={activeTab} onSelect={setActiveTab} />
+        <div className="sticky top-0 z-30 space-y-4 bg-[linear-gradient(180deg,_rgba(255,253,248,0.96)_0%,_rgba(255,253,248,0.92)_72%,_rgba(255,253,248,0)_100%)] pb-2 pt-1 backdrop-blur">
+          <DashboardHeader
+            isRefreshing={isRefreshing}
+            onRefresh={() => void refresh()}
+          />
+          <DashboardTabs activeTab={activeTab} onSelect={setActiveTab} />
+          {activeTab === "overview" && dashboardData && !isLoading && !error ? (
+            <div className="-mx-1 bg-[#fffdf8] px-1 pb-3 pt-1">
+              <OverviewMetrics data={dashboardData} />
+            </div>
+          ) : null}
+        </div>
         <DashboardContent
           activeTab={activeTab}
           aliasesResponse={aliasesResponse}

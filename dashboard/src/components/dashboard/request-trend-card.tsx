@@ -21,17 +21,16 @@ import {
   CardTitle,
 } from "../ui/card"
 
-type TrendMetric = "requests" | "tokens" | "errors"
+type TrendMetric = "requests" | "inputTokens" | "outputTokens" | "errors"
+type TrendTab = "requests" | "tokens" | "errors"
 type Granularity = "day" | "week" | "month" | "year"
 type WindowMode = "rolling" | "calendar"
 
-const METRIC_CONFIG: Record<
-  TrendMetric,
-  { label: string; color: string; fill: string }
-> = {
-  requests: { label: "请求数", color: "#6366f1", fill: "#6366f120" },
-  tokens: { label: "Token", color: "#0ea5e9", fill: "#0ea5e920" },
-  errors: { label: "错误数", color: "#f43f5e", fill: "#f43f5e20" },
+const METRIC_CONFIG: Record<TrendMetric, { label: string; color: string }> = {
+  requests: { label: "请求数", color: "#6366f1" },
+  inputTokens: { label: "Input Token", color: "#0ea5e9" },
+  outputTokens: { label: "Output Token", color: "#14b8a6" },
+  errors: { label: "错误数", color: "#f43f5e" },
 }
 
 const GRANULARITY_CONFIG: Record<
@@ -117,21 +116,48 @@ export function RequestTrendCard({
 }: {
   initialData: Array<TimeSeriesPoint>
 }) {
-  const [metric, setMetric] = useState<TrendMetric>("requests")
+  const [metric, setMetric] = useState<TrendTab>("requests")
   const [granularity, setGranularity] = useState<Granularity>("day")
   const [windowMode, setWindowMode] = useState<WindowMode>("rolling")
   const [data, setData] = useState(initialData)
   const [loading, setLoading] = useState(false)
 
-  const config = METRIC_CONFIG[metric]
-  const total = data.reduce((sum, point) => sum + point[metric], 0)
+  const total = data.reduce((sum, point) => {
+    if (metric === "tokens") {
+      return sum + point.inputTokens + point.outputTokens
+    }
+    if (metric === "requests" || metric === "errors") {
+      return sum + point[metric]
+    }
+    return sum
+  }, 0)
   const peakPoint = data.reduce<TimeSeriesPoint | null>((current, point) => {
-    if (!current || point[metric] > current[metric]) {
+    const currentValue =
+      metric === "tokens"
+        ? (current?.inputTokens ?? 0) + (current?.outputTokens ?? 0)
+        : (current?.[metric] ?? 0)
+    const pointValue =
+      metric === "tokens"
+        ? point.inputTokens + point.outputTokens
+        : point[metric]
+
+    if (!current || pointValue > currentValue) {
       return point
     }
     return current
   }, null)
-  const nonZeroBuckets = data.filter((point) => point[metric] > 0).length
+  const nonZeroBuckets = data.filter((point) => {
+    if (metric === "tokens") {
+      return point.inputTokens > 0 || point.outputTokens > 0
+    }
+    return point[metric] > 0
+  }).length
+  const peakValue =
+    peakPoint == null
+      ? 0
+      : metric === "tokens"
+        ? peakPoint.inputTokens + peakPoint.outputTokens
+        : peakPoint[metric]
 
   const formatBucketLabel: Record<Granularity, (b: string) => string> = {
     day: formatHourOnly,
@@ -231,9 +257,11 @@ export function RequestTrendCard({
             </div>
             <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
               {(
-                Object.entries(METRIC_CONFIG) as Array<
-                  [TrendMetric, (typeof METRIC_CONFIG)[TrendMetric]]
-                >
+                [
+                  ["requests", { label: "请求数", color: "#6366f1" }],
+                  ["tokens", { label: "Token", color: "#0ea5e9" }],
+                  ["errors", { label: "错误数", color: "#f43f5e" }],
+                ] as const
               ).map(([key, cfg]) => (
                 <button
                   key={key}
@@ -257,13 +285,13 @@ export function RequestTrendCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="mb-4 grid gap-3 md:grid-cols-3">
+        <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl bg-slate-50 px-4 py-3">
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
               当前窗口总计
             </p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-slate-950">
-              {formatCompactNumber(total)}
+              {formatNumber(total)}
             </p>
           </div>
           <div className="rounded-2xl bg-slate-50 px-4 py-3">
@@ -272,6 +300,14 @@ export function RequestTrendCard({
             </p>
             <p className="mt-1 text-xl font-semibold text-slate-950">
               {peakPoint ? tooltipFormat(peakPoint.bucket) : "暂无"}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+              峰值数字
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-slate-950">
+              {formatNumber(peakValue)}
             </p>
           </div>
           <div className="rounded-2xl bg-slate-50 px-4 py-3">
@@ -321,18 +357,42 @@ export function RequestTrendCard({
                     border: "1px solid #e2e8f0",
                     fontSize: "0.8125rem",
                   }}
-                  formatter={(value) => [
-                    formatNumber(Number(value)),
-                    config.label,
-                  ]}
+                  formatter={(value, name) => {
+                    const label =
+                      typeof name === "string"
+                        ? name
+                        : metric === "tokens"
+                          ? "Token"
+                          : metric === "requests"
+                            ? "请求数"
+                            : "错误数"
+                    return [formatNumber(Number(value)), label]
+                  }}
                   labelFormatter={(label) => tooltipFormat(String(label))}
                 />
-                <Bar
-                  dataKey={metric}
-                  fill={config.color}
-                  stroke={config.color}
-                  radius={[6, 6, 0, 0]}
-                />
+                {metric === "tokens" ? (
+                  <>
+                    <Bar
+                      dataKey="inputTokens"
+                      fill={METRIC_CONFIG.inputTokens.color}
+                      name={METRIC_CONFIG.inputTokens.label}
+                      radius={[6, 6, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="outputTokens"
+                      fill={METRIC_CONFIG.outputTokens.color}
+                      name={METRIC_CONFIG.outputTokens.label}
+                      radius={[6, 6, 0, 0]}
+                    />
+                  </>
+                ) : (
+                  <Bar
+                    dataKey={metric}
+                    fill={METRIC_CONFIG[metric].color}
+                    name={METRIC_CONFIG[metric].label}
+                    radius={[6, 6, 0, 0]}
+                  />
+                )}
               </BarChart>
             </ResponsiveContainer>
           </div>

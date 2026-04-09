@@ -6,6 +6,7 @@ import { HTTPError } from "~/lib/error"
 interface EnqueueRequestLogInput {
   route: string
   startedAt: number
+  model?: string | null
   requestModel?: string | null
   targetModel?: string | null
   stream?: boolean
@@ -41,12 +42,16 @@ function getErrorMessage(error: unknown): string | null {
   return typeof error === "string" ? error : JSON.stringify(error)
 }
 
+function normalizeModel(value: string | null | undefined): string | null {
+  return value?.trim().toLowerCase() ?? null
+}
+
 export function enqueueRequestLog(input: EnqueueRequestLogInput): void {
   try {
     const statusCode = getStatusCode(input)
     const status = statusCode >= 400 ? "error" : "success"
-    const requestModel = input.requestModel ?? null
-    const targetModel = input.targetModel ?? requestModel
+    const requestModel = normalizeModel(input.requestModel ?? input.model)
+    const targetModel = normalizeModel(input.targetModel ?? requestModel)
 
     getRequestSink().enqueue({
       timestamp: new Date().toISOString(),
@@ -60,6 +65,12 @@ export function enqueueRequestLog(input: EnqueueRequestLogInput): void {
       inputTokens: input.inputTokens ?? null,
       outputTokens: input.outputTokens ?? null,
       totalTokens: input.totalTokens ?? null,
+      pricingSource: null,
+      pricingModelId: null,
+      pricePromptUsdPerToken: null,
+      priceCompletionUsdPerToken: null,
+      priceRequestUsd: null,
+      estimatedCostUsd: null,
       errorMessage: getErrorMessage(input.error),
       accountType: input.accountType,
     })

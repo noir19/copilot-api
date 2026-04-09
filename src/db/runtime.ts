@@ -17,6 +17,11 @@ import {
 } from "~/lib/dashboard-config"
 import { createModelAliasStore } from "~/lib/model-alias-store"
 import { PATHS } from "~/lib/paths"
+import {
+  createOpenRouterPricingService,
+  estimateOpenRouterCostUsd,
+  roundUsd,
+} from "~/services/openrouter/pricing"
 
 const db = new Database(process.env.COPILOT_API_DB_PATH ?? PATHS.DATABASE_PATH)
 initDatabase(db)
@@ -28,9 +33,43 @@ const openRouterPricingCacheRepository =
   createOpenRouterPricingCacheRepository(db)
 const requestLogRepository = createRequestLogRepository(db)
 const modelAliasStore = createModelAliasStore(modelAliasRepository)
+const openRouterPricingService = createOpenRouterPricingService({
+  repository: openRouterPricingCacheRepository,
+})
 const requestSink = createRequestSink({
-  writeBatch(records) {
-    return requestLogRepository.insertBatch(records)
+  async writeBatch(records) {
+    const enrichedRecords = await Promise.all(
+      records.map(async (record) => {
+        if (record.pricingSource || record.estimatedCostUsd != null) {
+          return record
+        }
+
+        const pricing = await openRouterPricingService.getPricing(
+          record.modelRaw,
+        )
+        if (!pricing) {
+          return record
+        }
+
+        return {
+          ...record,
+          pricingSource: "openrouter",
+          pricingModelId: pricing.modelId,
+          pricePromptUsdPerToken: pricing.promptUsdPerToken,
+          priceCompletionUsdPerToken: pricing.completionUsdPerToken,
+          priceRequestUsd: pricing.requestUsd,
+          estimatedCostUsd: roundUsd(
+            estimateOpenRouterCostUsd({
+              inputTokens: record.inputTokens ?? 0,
+              completionTokens: record.outputTokens ?? 0,
+              pricing,
+            }),
+          ),
+        }
+      }),
+    )
+
+    return requestLogRepository.insertBatch(enrichedRecords)
   },
   flushIntervalMs: 500,
   batchSize: 100,
@@ -59,6 +98,23 @@ async function pruneExpiredRequestLogs(): Promise<number> {
   return requestLogRepository.deleteOlderThan(cutoff)
 }
 
+async function backfillHistoricalPricing(): Promise<number> {
+  return requestLogRepository.backfillMissingPricing(async (model) => {
+    const pricing = await openRouterPricingService.getPricing(model)
+    if (!pricing) {
+      return null
+    }
+
+    return {
+      pricingSource: "openrouter",
+      pricingModelId: pricing.modelId,
+      pricePromptUsdPerToken: pricing.promptUsdPerToken,
+      priceCompletionUsdPerToken: pricing.completionUsdPerToken,
+      priceRequestUsd: pricing.requestUsd,
+    }
+  })
+}
+
 export async function initializeDashboardRuntime(): Promise<void> {
   if (initialized) {
     return
@@ -69,6 +125,7 @@ export async function initializeDashboardRuntime(): Promise<void> {
       requestSink.start()
 
       await pruneExpiredRequestLogs()
+      await backfillHistoricalPricing()
 
       setInterval(() => {
         void pruneExpiredRequestLogs()
@@ -111,6 +168,10 @@ export function getOpenRouterPricingCacheRepository() {
 
 export function getDashboardConfig() {
   return dashboardRuntimeConfig
+}
+
+export function getOpenRouterPricingService() {
+  return openRouterPricingService
 }
 
 export async function createModelAlias(input: CreateModelAliasInput) {

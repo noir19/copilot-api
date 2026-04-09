@@ -12,7 +12,10 @@ export async function getVSCodeVersion(): Promise<string> {
       { signal: controller.signal },
     )
 
-    const releases: Array<string> = await response.json()
+    const body: unknown = await response.json()
+    const releases = Array.isArray(body)
+      ? body.filter((item): item is string => typeof item === "string")
+      : []
 
     if (releases.length > 0 && /^\d+\.\d+\.\d+$/.test(releases[0])) {
       return releases[0]

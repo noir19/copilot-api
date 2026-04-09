@@ -7,7 +7,7 @@ import {
   getDashboardMetaRepository,
   getModelAliasRepository,
   getModelAliasStore,
-  getOpenRouterPricingCacheRepository,
+  getOpenRouterPricingService,
   getRequestLogRepository,
   getRequestSinkConfig,
   reconfigureRequestSink,
@@ -29,16 +29,9 @@ import { modelRoutes } from "./routes/models/route"
 import { tokenRoute } from "./routes/token/route"
 import { usageRoute } from "./routes/usage/route"
 import { getCopilotUsage } from "./services/github/get-copilot-usage"
-import {
-  createOpenRouterPricingService,
-  estimateOpenRouterCostUsd,
-  roundUsd,
-} from "./services/openrouter/pricing"
 
 export const server = new Hono()
-const openRouterPricing = createOpenRouterPricingService({
-  repository: getOpenRouterPricingCacheRepository(),
-})
+const openRouterPricing = getOpenRouterPricingService()
 
 server.use(logger(honoPrintFn))
 server.use(cors())
@@ -67,49 +60,22 @@ server.route(
     },
     getUsage: getCopilotUsage,
     getOverview: async () => {
-      const repository = getRequestLogRepository()
-      const overview = await repository.getOverview()
-      const breakdown = await repository.getModelBreakdown()
-
-      let totalCostUsd = 0
-      for (const row of breakdown) {
-        const pricing = await openRouterPricing.getPricing(row.modelRaw)
-        if (!pricing) {
-          continue
-        }
-
-        totalCostUsd += estimateOpenRouterCostUsd({
-          inputTokens: row.inputTokens,
-          completionTokens: row.outputTokens,
-          pricing,
-        })
-      }
-
-      return {
-        ...overview,
-        openRouterEstimatedCostUsd: roundUsd(totalCostUsd),
-      }
+      return getRequestLogRepository().getOverview()
     },
     getModelBreakdown: async () => {
       const rows = await getRequestLogRepository().getModelBreakdown()
 
       return Promise.all(
         rows.map(async (row) => {
-          const pricing = await openRouterPricing.getPricing(row.modelRaw)
-          if (!pricing) {
+          if (row.openRouterModelId || row.modelRaw == null) {
             return row
           }
 
+          const pricing = await openRouterPricing.getPricing(row.modelRaw)
+
           return {
             ...row,
-            openRouterEstimatedCostUsd: roundUsd(
-              estimateOpenRouterCostUsd({
-                inputTokens: row.inputTokens,
-                completionTokens: row.outputTokens,
-                pricing,
-              }),
-            ),
-            openRouterModelId: pricing.modelId,
+            openRouterModelId: pricing?.modelId ?? null,
           }
         }),
       )

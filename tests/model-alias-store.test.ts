@@ -87,4 +87,23 @@ describe("model alias store", () => {
     expect(store.getSnapshot().version).toBe(initialVersion + 1)
     expect(store.getSnapshot().count).toBe(2)
   })
+
+  test("resolves aliases case-insensitively with lowercase outputs", async () => {
+    await repository.replace([
+      {
+        id: "1",
+        sourceModel: "gpt-5.4",
+        targetModel: "openai/gpt-5.4",
+        enabled: true,
+        createdAt: "2026-04-09T10:00:00.000Z",
+        updatedAt: "2026-04-09T10:00:00.000Z",
+      },
+    ])
+
+    const store = createModelAliasStore(repository)
+    await store.load()
+
+    expect(store.resolveTargetModel("GPT-5.4")).toBe("openai/gpt-5.4")
+    expect(store.resolveTargetModel("UNKNOWN-MODEL")).toBe("unknown-model")
+  })
 })
