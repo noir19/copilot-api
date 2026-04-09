@@ -7,6 +7,7 @@ import {
   deleteAlias,
   EMPTY_ALIAS_DRAFT,
   type ModelAliasRecord,
+  type SupportedModel,
   updateAlias,
 } from "../../lib/dashboard-api"
 import { formatTimestamp } from "../../lib/format"
@@ -34,9 +35,11 @@ import {
 export function ModelAliasesPanel({
   aliases,
   onChanged,
+  supportedModels,
 }: {
   aliases: AliasesResponse
   onChanged: () => Promise<void>
+  supportedModels: Array<SupportedModel>
 }) {
   const [draft, setDraft] = useState<AliasDraft>(EMPTY_ALIAS_DRAFT)
   const [editingDraft, setEditingDraft] =
@@ -97,7 +100,7 @@ export function ModelAliasesPanel({
           {error}
         </div>
       ) : null}
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr_0.85fr]">
         <Card>
           <CardHeader>
             <CardTitle>模型别名</CardTitle>
@@ -322,6 +325,65 @@ export function ModelAliasesPanel({
             >
               保存别名
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Copilot 支持模型</CardTitle>
+            <CardDescription>
+              这里列出当前从 Copilot
+              拉到的可用模型。点击“填入目标”可直接写入目标模型输入框。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {supportedModels.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                还没有拿到支持模型列表。
+              </div>
+            ) : (
+              <div className="max-h-[560px] space-y-3 overflow-y-auto pr-1">
+                {supportedModels.map((model) => (
+                  <div
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                    key={model.id}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="truncate text-sm font-semibold text-slate-950">
+                          {model.name}
+                        </p>
+                        <code className="block break-all rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                          {model.id}
+                        </code>
+                      </div>
+                      <Button
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            targetModel: model.id,
+                          }))
+                        }
+                        size="sm"
+                        variant="outline"
+                      >
+                        填入目标
+                      </Button>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge className="bg-slate-100 text-slate-600">
+                        {model.vendor}
+                      </Badge>
+                      {model.preview ? (
+                        <Badge className="bg-amber-50 text-amber-700">
+                          Preview
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

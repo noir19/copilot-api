@@ -400,6 +400,7 @@ Current dashboard tabs:
 - **Overview**: real request totals, success/error rates, latency, token totals, OpenRouter cost estimate, Copilot quota cards, model distribution, and request trend chart (default hourly / 24h window)
 - **Logs**: server-side paginated request logs with model/route/status/time filtering
 - **Model Aliases**: create, edit, delete, and enable or disable request-path aliases that are persisted in SQLite and reloaded into the in-memory cache
+- **Model Aliases**: create, edit, delete, and enable or disable request-path aliases that are persisted in SQLite and reloaded into the in-memory cache; the dashboard also shows the current Copilot-supported model list for easier configuration
 - **Settings**: log retention policy and async queue configuration
 
 The dashboard data is persisted in the same application data directory used for token state:
@@ -504,3 +505,4 @@ bun run start
 | 2026-04-09 | Dashboard: trend granularity + cleanup | [20260409-dashboard-trend-granularity-and-cleanup](review/20260409-dashboard-trend-granularity-and-cleanup.md) |
 | 2026-04-09 | Dashboard: hourly trend default + OpenRouter cost estimate | [20260409-dashboard-openrouter-cost-estimate](review/20260409-dashboard-openrouter-cost-estimate.md) |
 | 2026-04-09 | OpenRouter pricing: daily SQLite cache | [20260409-openrouter-daily-sqlite-cache](review/20260409-openrouter-daily-sqlite-cache.md) |
+| 2026-04-09 | Dashboard: supported models list in alias page | [20260409-dashboard-supported-models-list](review/20260409-dashboard-supported-models-list.md) |

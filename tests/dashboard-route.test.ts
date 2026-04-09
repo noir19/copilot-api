@@ -75,6 +75,27 @@ function createReadOnlyApp(): Hono {
           updatedAt: "2026-04-08T12:00:00.000Z",
         })
       },
+      getSupportedModels() {
+        return Promise.resolve([
+          {
+            id: "claude-sonnet-4-5",
+            name: "Claude Sonnet 4.5",
+            object: "model",
+            model_picker_enabled: true,
+            preview: false,
+            vendor: "anthropic",
+            version: "1",
+            capabilities: {
+              family: "claude",
+              limits: {},
+              object: "capabilities",
+              supports: {},
+              tokenizer: "claude",
+              type: "chat",
+            },
+          },
+        ])
+      },
       getUsage() {
         return Promise.resolve(createUsageResponse())
       },
@@ -220,6 +241,9 @@ function createMutableMappingsApp(): Hono {
         aliases.push(created)
         return Promise.resolve(created)
       },
+      getSupportedModels() {
+        return Promise.resolve([])
+      },
       getUsage() {
         return Promise.resolve(createUsageResponse())
       },
@@ -301,7 +325,7 @@ function createMutableMappingsApp(): Hono {
 }
 
 describe("dashboard route", () => {
-  test("returns overview, models, requests, aliases, and time-series data", async () => {
+  test("returns overview, models, requests, aliases, supported-models, and time-series data", async () => {
     const app = createReadOnlyApp()
 
     const overviewResponse = await app.request("/api/dashboard/overview")
@@ -328,6 +352,15 @@ describe("dashboard route", () => {
     >
     expect(aliases.data).toHaveLength(1)
     expect(aliases.meta?.version).toBe(1)
+
+    const supportedModelsResponse = await app.request(
+      "/api/dashboard/supported-models",
+    )
+    const supportedModels =
+      (await supportedModelsResponse.json()) as DashboardResponse<
+        Array<unknown>
+      >
+    expect(supportedModels.data).toHaveLength(1)
 
     const timeSeriesResponse = await app.request(
       "/api/dashboard/time-series?bucket=1440&limit=7",

@@ -86,8 +86,16 @@ export interface RequestLogFilter {
 export interface DashboardData {
   overview: RequestOverview
   requestModels: Array<ModelBreakdownRow>
+  supportedModels: Array<SupportedModel>
   timeSeries: Array<TimeSeriesPoint>
   usage: CopilotUsageResponse
+}
+
+export interface SupportedModel {
+  id: string
+  name: string
+  preview: boolean
+  vendor: string
 }
 
 export interface TimeSeriesPoint {
@@ -129,6 +137,10 @@ interface TimeSeriesResponse {
   data: Array<TimeSeriesPoint>
 }
 
+interface SupportedModelsResponse {
+  data: Array<SupportedModel>
+}
+
 export interface AliasDraft {
   enabled: boolean
   sourceModel: string
@@ -159,18 +171,21 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {
-  const [overview, usage, models, timeSeries] = await Promise.all([
-    fetchJson<RequestOverview>("/api/dashboard/overview"),
-    fetchJson<CopilotUsageResponse>("/api/dashboard/usage"),
-    fetchJson<ModelsResponse>("/api/dashboard/models"),
-    fetchJson<TimeSeriesResponse>(
-      "/api/dashboard/time-series?bucket=60&limit=24",
-    ),
-  ])
+  const [overview, usage, models, timeSeries, supportedModels] =
+    await Promise.all([
+      fetchJson<RequestOverview>("/api/dashboard/overview"),
+      fetchJson<CopilotUsageResponse>("/api/dashboard/usage"),
+      fetchJson<ModelsResponse>("/api/dashboard/models"),
+      fetchJson<TimeSeriesResponse>(
+        "/api/dashboard/time-series?bucket=60&limit=24",
+      ),
+      fetchJson<SupportedModelsResponse>("/api/dashboard/supported-models"),
+    ])
 
   return {
     overview,
     requestModels: models.data,
+    supportedModels: supportedModels.data,
     timeSeries: timeSeries.data,
     usage,
   }

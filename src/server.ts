@@ -15,6 +15,8 @@ import {
   updateModelAlias,
 } from "./db/runtime"
 import { honoPrintFn } from "./lib/logger"
+import { state } from "./lib/state"
+import { cacheModels } from "./lib/utils"
 import { completionRoutes } from "./routes/chat-completions/route"
 import {
   serveDashboardAsset,
@@ -55,6 +57,13 @@ server.route(
   "/api/dashboard",
   createDashboardRoute({
     createAlias: createModelAlias,
+    getSupportedModels: async () => {
+      if (!state.models) {
+        await cacheModels()
+      }
+
+      return state.models?.data ?? []
+    },
     getUsage: getCopilotUsage,
     getOverview: async () => {
       const repository = getRequestLogRepository()

@@ -13,10 +13,12 @@ import type {
 } from "~/db/request-logs"
 import type { RequestSinkConfig } from "~/db/request-sink"
 import type { ModelAliasRecord } from "~/lib/model-alias-store"
+import type { Model } from "~/services/copilot/get-models"
 import type { CopilotUsageResponse } from "~/services/github/get-copilot-usage"
 
 interface DashboardRouteDeps {
   createAlias(input: CreateModelAliasInput): Promise<ModelAliasRecord>
+  getSupportedModels(): Promise<Array<Model>>
   getUsage(): Promise<CopilotUsageResponse>
   getOverview(): Promise<RequestOverview>
   getModelBreakdown(): Promise<Array<ModelBreakdownRow>>
@@ -71,6 +73,18 @@ export function createDashboardRoute(deps: DashboardRouteDeps) {
   route.get("/usage", async (c) => {
     const usage = await deps.getUsage()
     return c.json(usage)
+  })
+
+  route.get("/supported-models", async (c) => {
+    const data = await deps.getSupportedModels()
+    return c.json({
+      data: data.map((model) => ({
+        id: model.id,
+        name: model.name,
+        preview: model.preview,
+        vendor: model.vendor,
+      })),
+    })
   })
 
   route.get("/models", async (c) => {
