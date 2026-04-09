@@ -105,8 +105,15 @@ export function ModelAliasesPanel({
           <CardHeader>
             <CardTitle>模型别名</CardTitle>
             <CardDescription>
-              这张表直接控制请求模型如何映射到目标模型，已经不再依赖
-              `model-aliases.json`。
+              这张表控制客户端请求模型如何映射到 Copilot 实际目标模型，例如
+              <code className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
+                claude-opus-4-6
+              </code>
+              {"->"}
+              <code className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
+                claude-opus-4.6
+              </code>
+              。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -121,8 +128,8 @@ export function ModelAliasesPanel({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>源模型</TableHead>
-                    <TableHead>目标模型</TableHead>
+                    <TableHead>请求模型</TableHead>
+                    <TableHead>Copilot 目标模型</TableHead>
                     <TableHead>状态</TableHead>
                     <TableHead>更新时间</TableHead>
                     <TableHead className="w-[180px]">操作</TableHead>
@@ -269,7 +276,7 @@ export function ModelAliasesPanel({
                 className="text-sm font-medium text-slate-700"
                 htmlFor="model-alias-source-model"
               >
-                源模型
+                请求模型
               </label>
               <Input
                 id="model-alias-source-model"
@@ -279,16 +286,20 @@ export function ModelAliasesPanel({
                     sourceModel: event.target.value,
                   }))
                 }
-                placeholder="haiku"
+                placeholder="claude-opus-4-6"
                 value={draft.sourceModel}
               />
+              <p className="text-xs text-slate-500">
+                这里填写客户端实际请求的模型名，例如 Claude Code 发出的
+                `claude-opus-4-6`。
+              </p>
             </div>
             <div className="space-y-2">
               <label
                 className="text-sm font-medium text-slate-700"
                 htmlFor="model-alias-target-model"
               >
-                目标模型
+                Copilot 目标模型
               </label>
               <Input
                 id="model-alias-target-model"
@@ -298,9 +309,12 @@ export function ModelAliasesPanel({
                     targetModel: event.target.value,
                   }))
                 }
-                placeholder="claude-haiku-4.5"
+                placeholder="claude-opus-4.6"
                 value={draft.targetModel}
               />
+              <p className="text-xs text-slate-500">
+                这里填写 Copilot 当前支持的真实模型 id，例如 `claude-opus-4.6`。
+              </p>
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-600">
               <input
@@ -331,10 +345,10 @@ export function ModelAliasesPanel({
 
       <Card>
         <CardHeader>
-          <CardTitle>Copilot 支持模型</CardTitle>
+          <CardTitle>Copilot 目标模型</CardTitle>
           <CardDescription>
             这里列出当前从 Copilot
-            拉到的可用模型。点击“填入目标”可直接写入目标模型输入框。
+            拉到的可用目标模型。点击“填入目标模型”可直接写入目标模型输入框。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -368,7 +382,7 @@ export function ModelAliasesPanel({
                       size="sm"
                       variant="outline"
                     >
-                      填入目标
+                      填入目标模型
                     </Button>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
