@@ -243,15 +243,8 @@ function buildWhereClause(filter: RequestLogFilter): {
 function readFilteredRequests(
   db: Database,
   options: { limit: number; offset: number; filter: RequestLogFilter },
-): { data: Array<RecentRequestRow>; total: number } {
+): Array<RecentRequestRow> {
   const { clause, params } = buildWhereClause(options.filter)
-
-  const countRow = db
-    .query<{ cnt: number }, Array<string>>(
-      `SELECT COUNT(*) AS cnt FROM request_logs ${clause}`,
-    )
-    .get(...params)
-  const total = countRow?.cnt ?? 0
 
   const rows = db
     .query<RecentRequestDbRow, Array<string | number>>(
@@ -277,7 +270,20 @@ function readFilteredRequests(
     )
     .all(...params, options.limit, options.offset)
 
-  return { data: rows.map((row) => toRecentRequest(row)), total }
+  return rows.map((row) => toRecentRequest(row))
+}
+
+function countFilteredRequests(
+  db: Database,
+  filter: RequestLogFilter,
+): number {
+  const { clause, params } = buildWhereClause(filter)
+  const row = db
+    .query<{ cnt: number }, Array<string>>(
+      `SELECT COUNT(*) AS cnt FROM request_logs ${clause}`,
+    )
+    .get(...params)
+  return row?.cnt ?? 0
 }
 
 interface TimeSeriesDbRow {
@@ -339,7 +345,7 @@ export function createRequestLogRepository(db: Database) {
       limit: number
       offset: number
       filter?: RequestLogFilter
-    }): Promise<{ data: Array<RecentRequestRow>; total: number }> {
+    }): Promise<Array<RecentRequestRow>> {
       return Promise.resolve(
         readFilteredRequests(db, {
           limit: options.limit,
@@ -347,6 +353,10 @@ export function createRequestLogRepository(db: Database) {
           filter: options.filter ?? {},
         }),
       )
+    },
+
+    countRequests(filter?: RequestLogFilter): Promise<number> {
+      return Promise.resolve(countFilteredRequests(db, filter ?? {}))
     },
 
     deleteOlderThan(cutoff: string): Promise<number> {

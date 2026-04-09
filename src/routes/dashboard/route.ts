@@ -30,7 +30,8 @@ interface DashboardRouteDeps {
     limit: number
     offset: number
     filter?: RequestLogFilter
-  }): Promise<{ data: Array<RecentRequestRow>; total: number }>
+  }): Promise<Array<RecentRequestRow>>
+  countRequests(filter?: RequestLogFilter): Promise<number>
   listMappings(): Promise<Array<ModelMappingRecord>>
   removeAlias(id: string): Promise<boolean>
   createMapping(input: CreateModelMappingInput): Promise<ModelMappingRecord>
@@ -85,9 +86,7 @@ export function createDashboardRoute(deps: DashboardRouteDeps) {
     return c.json({ data })
   })
 
-  route.get("/requests", async (c) => {
-    const limit = Number.parseInt(c.req.query("limit") ?? "20", 10)
-    const offset = Number.parseInt(c.req.query("offset") ?? "0", 10)
+  function parseRequestFilter(c: { req: { query(key: string): string | undefined } }): RequestLogFilter {
     const filter: RequestLogFilter = {}
     const model = c.req.query("model")
     const routeQ = c.req.query("route")
@@ -99,12 +98,21 @@ export function createDashboardRoute(deps: DashboardRouteDeps) {
     if (status === "success" || status === "error") filter.status = status
     if (timeFrom) filter.timeFrom = timeFrom
     if (timeTo) filter.timeTo = timeTo
-    const { data, total } = await deps.getRecentRequests({
-      limit,
-      offset,
-      filter,
-    })
-    return c.json({ data, total, limit, offset })
+    return filter
+  }
+
+  route.get("/requests", async (c) => {
+    const limit = Number.parseInt(c.req.query("limit") ?? "20", 10)
+    const offset = Number.parseInt(c.req.query("offset") ?? "0", 10)
+    const filter = parseRequestFilter(c)
+    const data = await deps.getRecentRequests({ limit, offset, filter })
+    return c.json({ data, limit, offset })
+  })
+
+  route.get("/requests/count", async (c) => {
+    const filter = parseRequestFilter(c)
+    const total = await deps.countRequests(filter)
+    return c.json({ total })
   })
 
   route.get("/time-series", async (c) => {

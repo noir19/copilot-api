@@ -124,6 +124,9 @@ export interface AliasesResponse {
 
 interface RequestsResponse {
   data: Array<RecentRequestRow>
+}
+
+interface CountResponse {
   total: number
 }
 
@@ -194,23 +197,40 @@ export async function loadDashboardData(): Promise<DashboardData> {
   }
 }
 
+function buildFilterParams(filter?: RequestLogFilter): URLSearchParams {
+  const params = new URLSearchParams()
+  if (filter?.model) params.set("model", filter.model)
+  if (filter?.route) params.set("route", filter.route)
+  if (filter?.status) params.set("status", filter.status)
+  if (filter?.timeFrom)
+    params.set("timeFrom", new Date(filter.timeFrom).toISOString())
+  if (filter?.timeTo)
+    params.set("timeTo", new Date(filter.timeTo).toISOString())
+  return params
+}
+
 export async function loadRequests(
   page: number,
   pageSize: number,
   filter?: RequestLogFilter,
-): Promise<{ data: Array<RecentRequestRow>; total: number }> {
-  const params = new URLSearchParams()
+): Promise<Array<RecentRequestRow>> {
+  const params = buildFilterParams(filter)
   params.set("limit", String(pageSize))
   params.set("offset", String(page * pageSize))
-  if (filter?.model) params.set("model", filter.model)
-  if (filter?.route) params.set("route", filter.route)
-  if (filter?.status) params.set("status", filter.status)
-  if (filter?.timeFrom) params.set("timeFrom", new Date(filter.timeFrom).toISOString())
-  if (filter?.timeTo) params.set("timeTo", new Date(filter.timeTo).toISOString())
   const res = await fetchJson<RequestsResponse>(
     `/api/dashboard/requests?${params.toString()}`,
   )
-  return { data: res.data, total: res.total }
+  return res.data
+}
+
+export async function loadRequestCount(
+  filter?: RequestLogFilter,
+): Promise<number> {
+  const params = buildFilterParams(filter)
+  const res = await fetchJson<CountResponse>(
+    `/api/dashboard/requests/count?${params.toString()}`,
+  )
+  return res.total
 }
 
 export function loadMappings(): Promise<MappingsResponse> {

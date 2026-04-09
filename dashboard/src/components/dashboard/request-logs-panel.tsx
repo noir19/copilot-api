@@ -6,7 +6,7 @@ import type {
   RecentRequestRow,
   RequestLogFilter,
 } from "../../lib/dashboard-api"
-import { loadRequests } from "../../lib/dashboard-api"
+import { loadRequestCount, loadRequests } from "../../lib/dashboard-api"
 import { formatTimestamp } from "../../lib/format"
 import { cn } from "../../lib/utils"
 import { Badge } from "../ui/badge"
@@ -58,19 +58,15 @@ export function RequestLogsPanel({
     return f
   }, [filterModel, filterRoute, filterStatus, timeFrom, timeTo])
 
+  // Fetch rows for current page
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     loadRequests(page, PAGE_SIZE, filter)
-      .then((result) => {
-        if (!cancelled) {
-          setRows(result.data)
-          setTotal(result.total)
-        }
+      .then((data) => {
+        if (!cancelled) setRows(data)
       })
-      .catch(() => {
-        // keep existing data on error
-      })
+      .catch(() => {})
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
@@ -79,8 +75,25 @@ export function RequestLogsPanel({
     }
   }, [page, filter])
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages - 1)
+  // Fetch total count independently (only on filter change)
+  useEffect(() => {
+    let cancelled = false
+    setTotal(-1)
+    loadRequestCount(filter)
+      .then((count) => {
+        if (!cancelled) setTotal(count)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [filter])
+
+  const countLoaded = total >= 0
+  const totalPages = countLoaded
+    ? Math.max(1, Math.ceil(total / PAGE_SIZE))
+    : 0
+  const safePage = countLoaded ? Math.min(page, totalPages - 1) : page
 
   const hasFilter =
     filterModel || filterRoute || filterStatus || timeFrom || timeTo
@@ -235,7 +248,9 @@ export function RequestLogsPanel({
 
       <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2">
         <p className="text-sm text-slate-500">
-          共 {total} 条{hasFilter ? "（已筛选）" : ""}
+          {countLoaded
+            ? <>共 {total} 条{hasFilter ? "（已筛选）" : ""}</>
+            : "统计中..."}
         </p>
         <div className="flex items-center gap-2">
           <Button
@@ -247,11 +262,11 @@ export function RequestLogsPanel({
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-sm tabular-nums text-slate-600">
-            {safePage + 1} / {totalPages}
+            {safePage + 1}{countLoaded ? ` / ${totalPages}` : ""}
           </span>
           <Button
-            disabled={safePage >= totalPages - 1}
-            onClick={() => setPage(safePage + 1)}
+            disabled={countLoaded ? safePage >= totalPages - 1 : rows.length < PAGE_SIZE}
+            onClick={() => setPage(page + 1)}
             size="sm"
             variant="outline"
           >
