@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import {
-  Area,
-  AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
@@ -12,10 +12,16 @@ import {
 import { loadTimeSeries, type TimeSeriesPoint } from "../../lib/dashboard-api"
 import { formatCompactNumber, formatNumber } from "../../lib/format"
 import { Button } from "../ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../ui/card"
 
 type TrendMetric = "requests" | "tokens" | "errors"
-type Granularity = "hour" | "day"
+type Granularity = "day" | "week" | "month" | "year"
 
 const METRIC_CONFIG: Record<
   TrendMetric,
@@ -30,8 +36,15 @@ const GRANULARITY_CONFIG: Record<
   Granularity,
   { label: string; bucketMinutes: number; limit: number }
 > = {
-  hour: { label: "小时", bucketMinutes: 60, limit: 168 },
-  day: { label: "天", bucketMinutes: 1440, limit: 30 },
+  day: { label: "日", bucketMinutes: 60, limit: 24 },
+  week: { label: "周", bucketMinutes: 1440, limit: 7 },
+  month: { label: "月", bucketMinutes: 1440, limit: 30 },
+  year: { label: "年", bucketMinutes: 43200, limit: 12 },
+}
+
+function formatHourOnly(bucket: string): string {
+  const d = new Date(bucket)
+  return `${String(d.getHours()).padStart(2, "0")}:00`
 }
 
 function formatHourBucket(bucket: string): string {
@@ -49,19 +62,47 @@ function formatDayBucket(bucket: string): string {
   return `${month}/${day}`
 }
 
+function formatMonthBucket(bucket: string): string {
+  const d = new Date(bucket)
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}`
+}
+
 export function RequestTrendCard({
   initialData,
 }: {
   initialData: Array<TimeSeriesPoint>
 }) {
   const [metric, setMetric] = useState<TrendMetric>("requests")
-  const [granularity, setGranularity] = useState<Granularity>("hour")
+  const [granularity, setGranularity] = useState<Granularity>("week")
   const [data, setData] = useState(initialData)
   const [loading, setLoading] = useState(false)
 
   const config = METRIC_CONFIG[metric]
-  const formatBucket =
-    granularity === "hour" ? formatHourBucket : formatDayBucket
+  const total = data.reduce((sum, point) => sum + point[metric], 0)
+  const peakPoint = data.reduce<TimeSeriesPoint | null>((current, point) => {
+    if (!current || point[metric] > current[metric]) {
+      return point
+    }
+    return current
+  }, null)
+  const nonZeroBuckets = data.filter((point) => point[metric] > 0).length
+
+  const formatBucketLabel: Record<Granularity, (b: string) => string> = {
+    day: formatHourOnly,
+    week: formatDayBucket,
+    month: formatDayBucket,
+    year: formatMonthBucket,
+  }
+
+  const formatBucketTooltip: Record<Granularity, (b: string) => string> = {
+    day: formatHourBucket,
+    week: formatDayBucket,
+    month: formatDayBucket,
+    year: formatMonthBucket,
+  }
+
+  const tickFormat = formatBucketLabel[granularity]
+  const tooltipFormat = formatBucketTooltip[granularity]
 
   const fetchData = useCallback(async (g: Granularity) => {
     const gc = GRANULARITY_CONFIG[g]
@@ -77,7 +118,7 @@ export function RequestTrendCard({
   }, [])
 
   useEffect(() => {
-    if (granularity === "hour") {
+    if (granularity === "week") {
       setData(initialData)
     } else {
       void fetchData(granularity)
@@ -87,9 +128,15 @@ export function RequestTrendCard({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-4">
-          <CardTitle className="text-base">请求趋势</CardTitle>
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="text-base">请求趋势</CardTitle>
+            <CardDescription>
+              按时间窗口查看请求波动、Token
+              消耗和错误密度。趋势图会补齐空桶，避免把无请求时段压缩掉。
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
               {(
                 Object.entries(GRANULARITY_CONFIG) as Array<
@@ -126,6 +173,32 @@ export function RequestTrendCard({
         </div>
       </CardHeader>
       <CardContent>
+        <div className="mb-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl bg-slate-50 px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+              当前窗口总计
+            </p>
+            <p className="mt-1 text-xl font-semibold text-slate-950">
+              {formatNumber(total)}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+              峰值桶
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-950">
+              {peakPoint ? tooltipFormat(peakPoint.bucket) : "暂无"}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+              有效桶
+            </p>
+            <p className="mt-1 text-xl font-semibold text-slate-950">
+              {formatNumber(nonZeroBuckets)}
+            </p>
+          </div>
+        </div>
         {data.length === 0 ? (
           <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
             {loading ? "加载中..." : "还没有时间序列数据。"}
@@ -138,7 +211,7 @@ export function RequestTrendCard({
               </div>
             ) : null}
             <ResponsiveContainer height="100%" width="100%">
-              <AreaChart data={data}>
+              <BarChart barCategoryGap={8} data={data}>
                 <CartesianGrid
                   stroke="#e2e8f0"
                   strokeDasharray="3 3"
@@ -148,7 +221,7 @@ export function RequestTrendCard({
                   dataKey="bucket"
                   fontSize={11}
                   stroke="#94a3b8"
-                  tickFormatter={formatBucket}
+                  tickFormatter={tickFormat}
                   tickLine={false}
                 />
                 <YAxis
@@ -168,17 +241,15 @@ export function RequestTrendCard({
                     formatNumber(Number(value)),
                     config.label,
                   ]}
-                  labelFormatter={(label) => formatBucket(String(label))}
+                  labelFormatter={(label) => tooltipFormat(String(label))}
                 />
-                <Area
+                <Bar
                   dataKey={metric}
-                  fill={config.fill}
-                  fillOpacity={1}
+                  fill={config.color}
                   stroke={config.color}
-                  strokeWidth={2}
-                  type="monotone"
+                  radius={[6, 6, 0, 0]}
                 />
-              </AreaChart>
+              </BarChart>
             </ResponsiveContainer>
           </div>
         )}

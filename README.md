@@ -154,9 +154,8 @@ The dashboard now uses SQLite as the source of truth for runtime metadata:
 
 - `request_logs`: async request log ingestion for dashboard trends, recent requests, and troubleshooting
 - `model_aliases`: request-path alias resolution, replacing the old `model-aliases.json` workflow
-- `model_mappings`: display-name mapping for dashboard presentation
 
-`model_aliases` and `model_mappings` are loaded into in-memory caches on startup and refreshed after dashboard writes, so requests do not query SQLite on every model lookup.
+`model_aliases` are loaded into an in-memory cache on startup and refreshed after dashboard writes, so requests do not query SQLite on every model lookup.
 
 ### Docker with Environment Variables
 
@@ -233,7 +232,6 @@ The dashboard is currently localized in Chinese and includes:
 - 来自 SQLite 的请求量、模型分布和最近请求
 - 请求日志页面，便于排查错误、模型命中和延迟
 - 模型别名管理，直接写入 `model_aliases`
-- 展示映射管理，直接写入 `model_mappings`
 
 If you want to change model aliases outside the UI, update the SQLite database directly instead of using `model-aliases.json`.
 
@@ -394,13 +392,13 @@ The dashboard is now served directly by the proxy and reads real data from:
 
 - SQLite request logs for request counts, model distribution, recent requests, and token totals
 - the live `GET /api/dashboard/usage` endpoint for Copilot quota data
-- the SQLite-backed model mapping store for display-name configuration
 
 Current dashboard tabs:
 
-- **Overview**: real request totals, success/error rates, latency, token totals, Copilot quota cards, model distribution, and recent requests
-- **Model Mappings**: create, edit, delete, and enable or disable display-name mappings that are persisted in SQLite and reloaded into the in-memory cache
-- **Settings**: placeholder shell for future configuration pages
+- **Overview**: real request totals, success/error rates, latency, token totals, Copilot quota cards, model distribution, and request trend chart (day/week/month/year granularity)
+- **Logs**: server-side paginated request logs with model/route/status/time filtering
+- **Model Aliases**: create, edit, delete, and enable or disable request-path aliases that are persisted in SQLite and reloaded into the in-memory cache
+- **Settings**: log retention policy and async queue configuration
 
 The dashboard data is persisted in the same application data directory used for token state:
 
@@ -496,3 +494,9 @@ bun run start
   - `--rate-limit <seconds>`: Enforces a minimum time interval between requests. For example, `copilot-api start --rate-limit 30` will ensure there's at least a 30-second gap between requests.
   - `--wait`: Use this with `--rate-limit`. It makes the server wait for the cooldown period to end instead of rejecting the request with an error. This is useful for clients that don't automatically retry on rate limit errors.
 - If you have a GitHub business or enterprise plan account with Copilot, use the `--account-type` flag (e.g., `--account-type business`). See the [official documentation](https://docs.github.com/en/enterprise-cloud@latest/copilot/managing-copilot/managing-github-copilot-in-your-organization/managing-access-to-github-copilot-in-your-organization/managing-github-copilot-access-to-your-organizations-network#configuring-copilot-subscription-based-network-routing-for-your-enterprise-or-organization) for more details.
+
+## Review Documents
+
+| Date | Scope | Document |
+|------|-------|----------|
+| 2026-04-09 | Dashboard: trend granularity + cleanup | [20260409-dashboard-trend-granularity-and-cleanup](review/20260409-dashboard-trend-granularity-and-cleanup.md) |

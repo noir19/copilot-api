@@ -290,7 +290,79 @@ interface TimeSeriesDbRow {
   errors: number
 }
 
+function bucketKind(bucketMinutes: number): "hour" | "day" | "month" {
+  if (bucketMinutes >= 43200) return "month"
+  if (bucketMinutes >= 1440) return "day"
+  return "hour"
+}
+
+function formatBucketDate(date: Date, bucketMinutes: number): string {
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0")
+  const day = String(date.getUTCDate()).padStart(2, "0")
+  const hour = String(date.getUTCHours()).padStart(2, "0")
+
+  switch (bucketKind(bucketMinutes)) {
+    case "month":
+      return `${year}-${month}-01T00:00:00Z`
+    case "day":
+      return `${year}-${month}-${day}T00:00:00Z`
+    case "hour":
+      return `${year}-${month}-${day}T${hour}:00:00Z`
+  }
+}
+
+function moveBucket(date: Date, bucketMinutes: number, step: number): Date {
+  const next = new Date(date)
+
+  switch (bucketKind(bucketMinutes)) {
+    case "month":
+      next.setUTCMonth(next.getUTCMonth() + step)
+      next.setUTCDate(1)
+      next.setUTCHours(0, 0, 0, 0)
+      return next
+    case "day":
+      next.setUTCDate(next.getUTCDate() + step)
+      next.setUTCHours(0, 0, 0, 0)
+      return next
+    case "hour":
+      next.setUTCHours(next.getUTCHours() + step, 0, 0, 0)
+      return next
+  }
+}
+
+function fillMissingTimeSeriesBuckets(
+  rows: Array<TimeSeriesDbRow>,
+  bucketMinutes: number,
+  limit: number,
+): Array<TimeSeriesPoint> {
+  if (rows.length === 0) {
+    return []
+  }
+
+  const latestBucket = new Date(rows[0].bucket)
+  const rowMap = new Map(rows.map((row) => [row.bucket, row]))
+  const buckets: Array<TimeSeriesPoint> = []
+
+  for (let index = limit - 1; index >= 0; index -= 1) {
+    const bucketDate = moveBucket(latestBucket, bucketMinutes, -index)
+    const bucket = formatBucketDate(bucketDate, bucketMinutes)
+    const row = rowMap.get(bucket)
+
+    buckets.push({
+      bucket,
+      requests: row?.requests ?? 0,
+      tokens: row?.tokens ?? 0,
+      errors: row?.errors ?? 0,
+    })
+  }
+
+  return buckets
+}
+
 function getBucketFormat(bucketMinutes: number): string {
+  if (bucketMinutes >= 525600) return "%Y-01-01T00:00:00Z"
+  if (bucketMinutes >= 43200) return "%Y-%m-01T00:00:00Z"
   if (bucketMinutes >= 1440) return "%Y-%m-%dT00:00:00Z"
   if (bucketMinutes >= 60) return "%Y-%m-%dT%H:00:00Z"
   return "%Y-%m-%dT%H:%M:00Z"
@@ -316,7 +388,7 @@ function readTimeSeries(
     )
     .all(limit)
 
-  return rows.reverse()
+  return fillMissingTimeSeriesBuckets(rows, bucketMinutes, limit)
 }
 
 export function createRequestLogRepository(db: Database) {

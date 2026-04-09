@@ -52,7 +52,12 @@ interface DashboardRouteDeps {
 export function createDashboardRoute(deps: DashboardRouteDeps) {
   const route = new Hono()
 
-  function clampInt(raw: string | undefined, fallback: number, min: number, max: number): number {
+  function clampInt(
+    raw: string | undefined,
+    fallback: number,
+    min: number,
+    max: number,
+  ): number {
     const n = Number.parseInt(raw ?? String(fallback), 10)
     if (!Number.isFinite(n)) return fallback
     return Math.max(min, Math.min(max, n))
@@ -105,7 +110,7 @@ export function createDashboardRoute(deps: DashboardRouteDeps) {
   })
 
   route.get("/time-series", async (c) => {
-    const bucketMinutes = clampInt(c.req.query("bucket"), 60, 1, 1440)
+    const bucketMinutes = clampInt(c.req.query("bucket"), 60, 1, 525600)
     const limit = clampInt(c.req.query("limit"), 168, 1, 1000)
     const data = await deps.getTimeSeries({ bucketMinutes, limit })
     return c.json({ data })

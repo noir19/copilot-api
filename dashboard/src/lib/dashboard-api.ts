@@ -159,7 +159,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
     fetchJson<CopilotUsageResponse>("/api/dashboard/usage"),
     fetchJson<ModelsResponse>("/api/dashboard/models"),
     fetchJson<TimeSeriesResponse>(
-      "/api/dashboard/time-series?bucket=60&limit=168",
+      "/api/dashboard/time-series?bucket=1440&limit=7",
     ),
   ])
 

@@ -197,4 +197,64 @@ describe("request logs repository", () => {
     expect(requests).toHaveLength(1)
     expect(requests[0]?.modelDisplay).toBe("GPT 4.1")
   })
+
+  test("fills missing time-series buckets with zeros", async () => {
+    await repository.insertBatch([
+      {
+        timestamp: "2026-04-07T12:00:00.000Z",
+        route: "/v1/chat/completions",
+        modelRaw: "claude-sonnet-4-5",
+        modelDisplay: "Claude Sonnet 4.5",
+        stream: false,
+        status: "success",
+        statusCode: 200,
+        latencyMs: 120,
+        inputTokens: 100,
+        outputTokens: 200,
+        totalTokens: 300,
+        errorMessage: null,
+        accountType: "individual",
+      },
+      {
+        timestamp: "2026-04-09T12:00:00.000Z",
+        route: "/v1/chat/completions",
+        modelRaw: "claude-sonnet-4-5",
+        modelDisplay: "Claude Sonnet 4.5",
+        stream: false,
+        status: "error",
+        statusCode: 500,
+        latencyMs: 180,
+        inputTokens: 50,
+        outputTokens: 0,
+        totalTokens: 50,
+        errorMessage: "upstream failed",
+        accountType: "individual",
+      },
+    ])
+
+    const series = await repository.getTimeSeries({
+      bucketMinutes: 1440,
+      limit: 3,
+    })
+
+    expect(series).toHaveLength(3)
+    expect(series[0]).toEqual({
+      bucket: "2026-04-07T00:00:00Z",
+      requests: 1,
+      tokens: 300,
+      errors: 0,
+    })
+    expect(series[1]).toEqual({
+      bucket: "2026-04-08T00:00:00Z",
+      requests: 0,
+      tokens: 0,
+      errors: 0,
+    })
+    expect(series[2]).toEqual({
+      bucket: "2026-04-09T00:00:00Z",
+      requests: 1,
+      tokens: 50,
+      errors: 1,
+    })
+  })
 })
