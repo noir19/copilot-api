@@ -121,6 +121,15 @@ export function RequestLogsPanel({
     }
   }, [committedFilter])
 
+  useEffect(() => {
+    if (!errorDetail) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setErrorDetail(null)
+    }
+    document.addEventListener("keydown", handler)
+    return () => document.removeEventListener("keydown", handler)
+  }, [errorDetail])
+
   const countLoaded = total >= 0
   const countFailed = total === -2
   const totalPages = countLoaded ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : 0
@@ -329,14 +338,14 @@ export function RequestLogsPanel({
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
           onClick={() => setErrorDetail(null)}
-          onKeyDown={(e) => e.key === "Escape" && setErrorDetail(null)}
+          onKeyDown={() => {}}
           role="dialog"
           aria-modal="true"
         >
           <div
             className="mx-4 max-h-[70vh] w-full max-w-lg overflow-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
+            onKeyDown={() => {}}
             role="document"
           >
             <div className="mb-3 flex items-center justify-between">
