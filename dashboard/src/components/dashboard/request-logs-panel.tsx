@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Search } from "lucide-react"
+import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import type {
@@ -195,9 +195,13 @@ export function RequestLogsPanel({
           step="1"
           value={timeTo}
         />
-        <Button onClick={commitFilter} size="sm">
-          <Search className="mr-1.5 h-3.5 w-3.5" />
-          查询
+        <Button disabled={loading} onClick={commitFilter} size="sm">
+          {loading ? (
+            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Search className="mr-1.5 h-3.5 w-3.5" />
+          )}
+          {loading ? "查询中" : "查询"}
         </Button>
         {hasFilter ? (
           <Button onClick={resetFilters} size="sm" variant="ghost">
