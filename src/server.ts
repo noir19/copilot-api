@@ -47,6 +47,7 @@ server.get("/", (c) => c.text("Server running"))
 server.get("/dashboard", () => serveDashboardIndex())
 server.get("/dashboard/", () => serveDashboardIndex())
 server.get("/dashboard/assets/*", (c) => serveDashboardAsset(c.req.path))
+server.get("/dashboard/*", (c) => serveDashboardAsset(c.req.path))
 
 server.route("/chat/completions", completionRoutes)
 server.route("/models", modelRoutes)

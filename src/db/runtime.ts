@@ -6,11 +6,6 @@ import {
   createModelAliasRepository,
   type UpdateModelAliasInput,
 } from "~/db/model-aliases"
-import {
-  type CreateModelMappingInput,
-  createModelMappingRepository,
-  type UpdateModelMappingInput,
-} from "~/db/model-mappings"
 import { createOpenRouterPricingCacheRepository } from "~/db/openrouter-pricing-cache"
 import { createRequestLogRepository } from "~/db/request-logs"
 import { createRequestSink, type RequestSinkConfig } from "~/db/request-sink"
@@ -21,7 +16,6 @@ import {
   getRequestLogRetentionCutoff,
 } from "~/lib/dashboard-config"
 import { createModelAliasStore } from "~/lib/model-alias-store"
-import { createModelMappingStore } from "~/lib/model-mapping-store"
 import { PATHS } from "~/lib/paths"
 
 const db = new Database(process.env.COPILOT_API_DB_PATH ?? PATHS.DATABASE_PATH)
@@ -30,12 +24,10 @@ const dashboardRuntimeConfig = getDashboardRuntimeConfig()
 
 const dashboardMetaRepository = createDashboardMetaRepository(db)
 const modelAliasRepository = createModelAliasRepository(db)
-const modelMappingRepository = createModelMappingRepository(db)
 const openRouterPricingCacheRepository =
   createOpenRouterPricingCacheRepository(db)
 const requestLogRepository = createRequestLogRepository(db)
 const modelAliasStore = createModelAliasStore(modelAliasRepository)
-const modelMappingStore = createModelMappingStore(modelMappingRepository)
 const requestSink = createRequestSink({
   writeBatch(records) {
     return requestLogRepository.insertBatch(records)
@@ -73,10 +65,7 @@ export async function initializeDashboardRuntime(): Promise<void> {
   }
 
   if (!initializationPromise) {
-    initializationPromise = Promise.all([
-      modelAliasStore.load(),
-      modelMappingStore.load(),
-    ]).then(async () => {
+    initializationPromise = modelAliasStore.load().then(async () => {
       requestSink.start()
 
       await pruneExpiredRequestLogs()
@@ -100,20 +89,12 @@ export function getRequestSink() {
   return requestSink
 }
 
-export function getModelMappingStore() {
-  return modelMappingStore
-}
-
 export function getModelAliasStore() {
   return modelAliasStore
 }
 
 export function getModelAliasRepository() {
   return modelAliasRepository
-}
-
-export function getModelMappingRepository() {
-  return modelMappingRepository
 }
 
 export function getRequestLogRepository() {
@@ -132,24 +113,9 @@ export function getDashboardConfig() {
   return dashboardRuntimeConfig
 }
 
-export async function createModelMapping(input: CreateModelMappingInput) {
-  const record = await modelMappingRepository.create(input)
-  await modelMappingStore.reload()
-  return record
-}
-
 export async function createModelAlias(input: CreateModelAliasInput) {
   const record = await modelAliasRepository.create(input)
   await modelAliasStore.reload()
-  return record
-}
-
-export async function updateModelMapping(
-  id: string,
-  input: UpdateModelMappingInput,
-) {
-  const record = await modelMappingRepository.update(id, input)
-  await modelMappingStore.reload()
   return record
 }
 
@@ -160,14 +126,6 @@ export async function updateModelAlias(
   const record = await modelAliasRepository.update(id, input)
   await modelAliasStore.reload()
   return record
-}
-
-export async function removeModelMapping(id: string) {
-  const removed = await modelMappingRepository.remove(id)
-  if (removed) {
-    await modelMappingStore.reload()
-  }
-  return removed
 }
 
 export async function removeModelAlias(id: string) {

@@ -186,7 +186,7 @@ export function RequestTrendCard({
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
               峰值桶
             </p>
-            <p className="mt-1 text-sm font-semibold text-slate-950">
+            <p className="mt-1 text-xl font-semibold text-slate-950">
               {peakPoint ? tooltipFormat(peakPoint.bucket) : "暂无"}
             </p>
           </div>

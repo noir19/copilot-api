@@ -25,7 +25,7 @@
     "build": "bun run build:server && bun run build:dashboard",
     "build:dashboard": "vite build --config dashboard/vite.config.ts",
     "build:server": "tsdown",
-    "dev": "bun run --watch ./src/main.ts",
+    "dev": "bun run --watch ./src/main.ts start",
     "dev:dashboard": "vite --config dashboard/vite.config.ts",
     "knip": "knip-bun",
     "format": "biome format --write .",

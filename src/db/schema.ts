@@ -29,18 +29,6 @@ export function initDatabase(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_request_logs_status
       ON request_logs(status);
 
-    CREATE TABLE IF NOT EXISTS model_mappings (
-      id TEXT PRIMARY KEY,
-      source_model TEXT NOT NULL UNIQUE,
-      display_name TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_model_mappings_source_model
-      ON model_mappings(source_model);
-
     CREATE TABLE IF NOT EXISTS model_aliases (
       id TEXT PRIMARY KEY,
       source_model TEXT NOT NULL UNIQUE,
