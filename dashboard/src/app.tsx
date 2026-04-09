@@ -7,8 +7,7 @@ import {
   Settings2,
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
-import { MappingsPanel } from "./components/dashboard/mappings-panel"
-import { ModelAliasesPanel } from "./components/dashboard/model-aliases-panel"
+import { ModelConfigPanel } from "./components/dashboard/model-config-panel"
 import { OverviewPanel } from "./components/dashboard/overview-panel"
 import { RequestLogsPanel } from "./components/dashboard/request-logs-panel"
 import { SettingsPanel } from "./components/dashboard/settings-panel"
@@ -26,7 +25,7 @@ import {
 import { formatNumber } from "./lib/format"
 import { cn } from "./lib/utils"
 
-type DashboardTab = "overview" | "logs" | "aliases" | "mappings" | "settings"
+type DashboardTab = "overview" | "logs" | "models" | "settings"
 
 const TAB_ITEMS: Array<{
   icon: typeof Activity
@@ -35,8 +34,7 @@ const TAB_ITEMS: Array<{
 }> = [
   { icon: Activity, key: "overview", label: "概览" },
   { icon: FileText, key: "logs", label: "日志" },
-  { icon: Bot, key: "aliases", label: "模型别名" },
-  { icon: Bot, key: "mappings", label: "展示映射" },
+  { icon: Bot, key: "models", label: "模型映射" },
   { icon: Settings2, key: "settings", label: "设置" },
 ]
 
@@ -54,7 +52,10 @@ function DashboardHeader({
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4 border-b border-slate-200/70 pb-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <Badge className="bg-slate-950 text-slate-50">运行中</Badge>
+            <Badge className="bg-emerald-500 text-white">
+              <span className="mr-1.5 inline-block h-2 w-2 animate-pulse rounded-full bg-white" />
+              运行中
+            </Badge>
             <Badge className="bg-white text-slate-600">
               {dashboardData
                 ? `已记录 ${formatNumber(dashboardData.overview.totalRequests)} 次请求`
@@ -78,7 +79,7 @@ function DashboardHeader({
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-slate-950 p-3 text-slate-50 shadow-lg shadow-slate-900/10">
+              <div className="rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 p-3 text-white shadow-lg shadow-violet-500/20">
                 <Database className="h-5 w-5" />
               </div>
               <div>
@@ -110,15 +111,19 @@ function DashboardTabs({
   onSelect: (tab: DashboardTab) => void
 }) {
   return (
-    <nav className="flex flex-wrap gap-2">
+    <nav className="flex flex-wrap gap-2 rounded-2xl border border-slate-200/70 bg-white/60 p-2 shadow-sm backdrop-blur">
       {TAB_ITEMS.map((item) => {
         const Icon = item.icon
+        const isActive = activeTab === item.key
         return (
           <Button
-            className="gap-2 rounded-full"
+            className={cn(
+              "gap-2 rounded-xl transition-all",
+              isActive && "shadow-sm",
+            )}
             key={item.key}
             onClick={() => onSelect(item.key)}
-            variant={activeTab === item.key ? "default" : "outline"}
+            variant={isActive ? "default" : "ghost"}
           >
             <Icon className="h-4 w-4" />
             {item.label}
@@ -176,11 +181,12 @@ function DashboardContent({
       {activeTab === "logs" ? (
         <RequestLogsPanel requests={dashboardData.recentRequests} />
       ) : null}
-      {activeTab === "aliases" ? (
-        <ModelAliasesPanel aliases={aliasesResponse} onChanged={onRefresh} />
-      ) : null}
-      {activeTab === "mappings" ? (
-        <MappingsPanel mappings={mappingsResponse} onChanged={onRefresh} />
+      {activeTab === "models" ? (
+        <ModelConfigPanel
+          aliases={aliasesResponse}
+          mappings={mappingsResponse}
+          onChanged={onRefresh}
+        />
       ) : null}
       {activeTab === "settings" ? <SettingsPanel /> : null}
     </>

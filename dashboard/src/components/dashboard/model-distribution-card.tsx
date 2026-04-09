@@ -28,12 +28,12 @@ type DistributionMetric = "requests" | "tokens"
 type DistributionView = "bar" | "donut" | "list"
 
 const CHART_COLORS = [
-  "#0f172a",
-  "#1d4ed8",
-  "#ea580c",
-  "#0f766e",
-  "#7c3aed",
-  "#be123c",
+  "#6366f1",
+  "#0ea5e9",
+  "#f59e0b",
+  "#10b981",
+  "#f43f5e",
+  "#8b5cf6",
 ]
 
 export function ModelDistributionCard({
@@ -53,8 +53,10 @@ export function ModelDistributionCard({
   const metricLabel = metric === "requests" ? "请求数" : "Token"
   const totalValue = chartData.reduce((sum, item) => sum + item[metric], 0)
 
+  const barChartHeight = Math.max(180, chartData.length * 56 + 40)
+
   return (
-    <Card className="h-full">
+    <Card className="h-full overflow-hidden">
       <CardHeader>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-1">
@@ -106,7 +108,7 @@ export function ModelDistributionCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex h-full flex-col space-y-5">
+      <CardContent className="space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
@@ -125,15 +127,17 @@ export function ModelDistributionCard({
             还没有请求数据。
           </div>
         ) : view === "bar" ? (
-          <div className="h-[320px] flex-1 overflow-hidden rounded-2xl border border-slate-100 bg-white">
+          <div
+            className="rounded-2xl border border-slate-100 bg-white"
+            style={{ height: barChartHeight }}
+          >
             <ResponsiveContainer height="100%" width="100%">
               <BarChart
-                barSize={28}
-                barCategoryGap={18}
+                barSize={24}
+                barCategoryGap={12}
                 data={chartData}
-                height={320}
                 layout="vertical"
-                margin={{ left: 20, right: 20, top: 16, bottom: 16 }}
+                margin={{ left: 8, right: 24, top: 12, bottom: 12 }}
               >
                 <CartesianGrid stroke="#e2e8f0" vertical={false} />
                 <XAxis
@@ -146,18 +150,19 @@ export function ModelDistributionCard({
                 <YAxis
                   axisLine={false}
                   dataKey="label"
+                  tick={{ fontSize: 12 }}
                   tickLine={false}
                   type="category"
-                  width={136}
+                  width={150}
                 />
                 <Tooltip cursor={{ fill: "#f8fafc" }} />
-                <Bar dataKey={metric} fill="#0f172a" radius={[0, 10, 10, 0]} />
+                <Bar dataKey={metric} fill="#6366f1" radius={[0, 10, 10, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         ) : view === "donut" ? (
           <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="h-[320px]">
+            <div className="h-[280px]">
               <ResponsiveContainer height="100%" width="100%">
                 <PieChart>
                   <Pie
@@ -181,7 +186,7 @@ export function ModelDistributionCard({
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="space-y-3">
+            <div className="max-h-[280px] space-y-3 overflow-y-auto">
               {chartData.map((item, index) => {
                 const value = item[metric]
                 const share = totalValue === 0 ? 0 : (value / totalValue) * 100
@@ -217,7 +222,7 @@ export function ModelDistributionCard({
             </div>
           </div>
         ) : (
-          <div className="flex-1 space-y-3">
+          <div className="max-h-[400px] space-y-3 overflow-y-auto">
             {chartData.map((item, index) => {
               const value = item[metric]
               const share = totalValue === 0 ? 0 : (value / totalValue) * 100

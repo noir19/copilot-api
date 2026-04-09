@@ -5,6 +5,7 @@ import {
   formatPercent,
   resolveQuotaValue,
 } from "../../lib/format"
+import { cn } from "../../lib/utils"
 import { Badge } from "../ui/badge"
 
 export function QuotaCard({
@@ -14,6 +15,13 @@ export function QuotaCard({
   label: string
   quota: QuotaDetail
 }) {
+  const barColor =
+    quota.percent_remaining > 50
+      ? "bg-emerald-500"
+      : quota.percent_remaining > 20
+        ? "bg-amber-500"
+        : "bg-rose-500"
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-center justify-between gap-3">
@@ -23,9 +31,9 @@ export function QuotaCard({
       <p className="mt-4 text-2xl font-semibold text-slate-950">
         {resolveQuotaValue(quota)}
       </p>
-      <div className="mt-3 h-2 rounded-full bg-slate-200">
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
         <div
-          className="h-full rounded-full bg-amber-500 transition-[width]"
+          className={cn("h-full rounded-full transition-all duration-500", barColor)}
           style={{
             width: `${Math.max(0, Math.min(quota.percent_remaining, 100))}%`,
           }}

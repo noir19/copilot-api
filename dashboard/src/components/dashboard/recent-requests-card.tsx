@@ -25,16 +25,18 @@ export function RecentRequestsCard({
 }: {
   recentRequests: Array<RecentRequestRow>
 }) {
+  const displayRows = recentRequests.slice(0, 20)
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>最近请求</CardTitle>
         <CardDescription>
-          首页只展示最近几条已落库请求，完整日志请切到“日志”页。
+          首页只展示最近 20 条已落库请求，完整日志请切到"日志"页。
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <TableWrapper>
+        <TableWrapper className="max-h-[480px] overflow-y-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -47,14 +49,14 @@ export function RecentRequestsCard({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {recentRequests.length === 0 ? (
+              {displayRows.length === 0 ? (
                 <TableRow>
                   <TableCell className="py-6 text-slate-500" colSpan={6}>
                     还没有最近请求。
                   </TableCell>
                 </TableRow>
               ) : (
-                recentRequests.map((request) => (
+                displayRows.map((request) => (
                   <TableRow key={request.id}>
                     <TableCell>{formatTimestamp(request.timestamp)}</TableCell>
                     <TableCell>

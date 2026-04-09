@@ -9,6 +9,17 @@ import {
   CardTitle,
 } from "../ui/card"
 
+const ROW_COLORS = [
+  "border-l-violet-400",
+  "border-l-sky-400",
+  "border-l-amber-400",
+  "border-l-emerald-400",
+  "border-l-rose-400",
+  "border-l-purple-400",
+  "border-l-cyan-400",
+  "border-l-orange-400",
+]
+
 export function ModelBreakdownCard({
   requestModels,
 }: {
@@ -27,9 +38,9 @@ export function ModelBreakdownCard({
               还没有模型请求数据。
             </div>
           ) : (
-            requestModels.slice(0, 8).map((item) => (
+            requestModels.slice(0, 8).map((item, index) => (
               <div
-                className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                className={`flex items-center justify-between rounded-2xl border border-slate-200 border-l-[3px] bg-slate-50 px-4 py-3 ${ROW_COLORS[index % ROW_COLORS.length]}`}
                 key={`${item.modelDisplay}-${item.modelRaw}`}
               >
                 <div>

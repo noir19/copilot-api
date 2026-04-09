@@ -14,24 +14,28 @@ export function OverviewPanel({ data }: { data: DashboardData }) {
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
+          colorIndex={0}
           description="SQLite 中已记录的全部请求"
           icon={Cable}
           title="总请求数"
           value={formatNumber(data.overview.totalRequests)}
         />
         <MetricCard
+          colorIndex={1}
           description="成功返回的 API 请求"
           icon={Activity}
           title="成功率"
           value={formatPercent(data.overview.successRate)}
         />
         <MetricCard
+          colorIndex={2}
           description="日志中累计记录的 Token"
           icon={Cpu}
           title="总 Token"
           value={formatNumber(data.overview.totalTokens)}
         />
         <MetricCard
+          colorIndex={3}
           description="所有已记录请求的平均耗时"
           icon={Clock3}
           title="平均延迟"
