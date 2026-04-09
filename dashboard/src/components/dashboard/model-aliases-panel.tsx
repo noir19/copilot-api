@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from "react"
-
 import { Check, Copy } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
 
 import {
   type AliasDraft,
@@ -417,13 +416,17 @@ export function ModelAliasesPanel({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-1.5">
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-slate-400">Display Name</p>
+                        <p className="text-[10px] uppercase tracking-wider text-slate-400">
+                          Display Name
+                        </p>
                         <p className="truncate text-sm font-semibold text-slate-950">
                           {model.name}
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-slate-400">Model ID</p>
+                        <p className="text-[10px] uppercase tracking-wider text-slate-400">
+                          Model ID
+                        </p>
                         <div className="flex items-center gap-1.5">
                           <code className="break-all rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
                             {model.id}
