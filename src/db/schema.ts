@@ -58,5 +58,19 @@ export function initDatabase(db: Database): void {
       value TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS openrouter_pricing_cache (
+      normalized_key TEXT NOT NULL,
+      model_id TEXT NOT NULL,
+      prompt_usd_per_token REAL NOT NULL,
+      completion_usd_per_token REAL NOT NULL,
+      request_usd REAL NOT NULL,
+      snapshot_date TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (snapshot_date, normalized_key)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_openrouter_pricing_cache_snapshot_date
+      ON openrouter_pricing_cache(snapshot_date);
   `)
 }

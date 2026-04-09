@@ -392,6 +392,7 @@ The dashboard is now served directly by the proxy and reads real data from:
 
 - SQLite request logs for request counts, model distribution, recent requests, and token totals
 - the live `GET /api/dashboard/usage` endpoint for Copilot quota data
+- OpenRouter 官方模型价格目录的自然日 SQLite 快照，用于估算同等请求走 OpenRouter 的费用
 
 Current dashboard tabs:
 
@@ -502,3 +503,4 @@ bun run start
 |------|-------|----------|
 | 2026-04-09 | Dashboard: trend granularity + cleanup | [20260409-dashboard-trend-granularity-and-cleanup](review/20260409-dashboard-trend-granularity-and-cleanup.md) |
 | 2026-04-09 | Dashboard: hourly trend default + OpenRouter cost estimate | [20260409-dashboard-openrouter-cost-estimate](review/20260409-dashboard-openrouter-cost-estimate.md) |
+| 2026-04-09 | OpenRouter pricing: daily SQLite cache | [20260409-openrouter-daily-sqlite-cache](review/20260409-openrouter-daily-sqlite-cache.md) |

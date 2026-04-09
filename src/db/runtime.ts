@@ -11,6 +11,7 @@ import {
   createModelMappingRepository,
   type UpdateModelMappingInput,
 } from "~/db/model-mappings"
+import { createOpenRouterPricingCacheRepository } from "~/db/openrouter-pricing-cache"
 import { createRequestLogRepository } from "~/db/request-logs"
 import { createRequestSink, type RequestSinkConfig } from "~/db/request-sink"
 import { initDatabase } from "~/db/schema"
@@ -30,6 +31,8 @@ const dashboardRuntimeConfig = getDashboardRuntimeConfig()
 const dashboardMetaRepository = createDashboardMetaRepository(db)
 const modelAliasRepository = createModelAliasRepository(db)
 const modelMappingRepository = createModelMappingRepository(db)
+const openRouterPricingCacheRepository =
+  createOpenRouterPricingCacheRepository(db)
 const requestLogRepository = createRequestLogRepository(db)
 const modelAliasStore = createModelAliasStore(modelAliasRepository)
 const modelMappingStore = createModelMappingStore(modelMappingRepository)
@@ -119,6 +122,10 @@ export function getRequestLogRepository() {
 
 export function getDashboardMetaRepository() {
   return dashboardMetaRepository
+}
+
+export function getOpenRouterPricingCacheRepository() {
+  return openRouterPricingCacheRepository
 }
 
 export function getDashboardConfig() {

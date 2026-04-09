@@ -7,6 +7,7 @@ import {
   getDashboardMetaRepository,
   getModelAliasRepository,
   getModelAliasStore,
+  getOpenRouterPricingCacheRepository,
   getRequestLogRepository,
   getRequestSinkConfig,
   reconfigureRequestSink,
@@ -33,7 +34,9 @@ import {
 } from "./services/openrouter/pricing"
 
 export const server = new Hono()
-const openRouterPricing = createOpenRouterPricingService()
+const openRouterPricing = createOpenRouterPricingService({
+  repository: getOpenRouterPricingCacheRepository(),
+})
 
 server.use(logger(honoPrintFn))
 server.use(cors())

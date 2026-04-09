@@ -12,6 +12,27 @@ interface OpenRouterModelsResponse {
   data?: Array<OpenRouterModelDescriptor>
 }
 
+interface OpenRouterPricingCacheRepository {
+  getLatestSnapshotDate(): string | null
+  listSnapshot(snapshotDate: string): Array<{
+    completionUsdPerToken: number
+    modelId: string
+    normalizedKey: string
+    promptUsdPerToken: number
+    requestUsd: number
+  }>
+  replaceSnapshot(
+    snapshotDate: string,
+    rows: Array<{
+      completionUsdPerToken: number
+      modelId: string
+      normalizedKey: string
+      promptUsdPerToken: number
+      requestUsd: number
+    }>,
+  ): void
+}
+
 export interface OpenRouterModelPricing {
   completionUsdPerToken: number
   modelId: string
@@ -73,6 +94,53 @@ export function buildPricingLookup(
   return lookup
 }
 
+function serializePricingLookup(
+  lookup: Map<string, OpenRouterModelPricing>,
+): Array<{
+  completionUsdPerToken: number
+  modelId: string
+  normalizedKey: string
+  promptUsdPerToken: number
+  requestUsd: number
+}> {
+  return Array.from(lookup.entries()).map(([normalizedKey, pricing]) => ({
+    normalizedKey,
+    modelId: pricing.modelId,
+    promptUsdPerToken: pricing.promptUsdPerToken,
+    completionUsdPerToken: pricing.completionUsdPerToken,
+    requestUsd: pricing.requestUsd,
+  }))
+}
+
+function buildLookupFromCache(
+  rows: Array<{
+    completionUsdPerToken: number
+    modelId: string
+    normalizedKey: string
+    promptUsdPerToken: number
+    requestUsd: number
+  }>,
+): Map<string, OpenRouterModelPricing> {
+  return new Map(
+    rows.map((row) => [
+      row.normalizedKey,
+      {
+        modelId: row.modelId,
+        promptUsdPerToken: row.promptUsdPerToken,
+        completionUsdPerToken: row.completionUsdPerToken,
+        requestUsd: row.requestUsd,
+      },
+    ]),
+  )
+}
+
+function formatNaturalDay(now: Date): string {
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, "0")
+  const day = String(now.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 export function estimateOpenRouterCostUsd(input: {
   completionTokens: number
   inputTokens: number
@@ -90,28 +158,83 @@ export function roundUsd(value: number): number {
 }
 
 export function createOpenRouterPricingService(options?: {
-  cacheTtlMs?: number
   fetchImpl?: FetchLike
+  now?: () => Date
+  repository?: OpenRouterPricingCacheRepository
 }) {
   const fetchImpl = options?.fetchImpl ?? fetch
-  const cacheTtlMs = options?.cacheTtlMs ?? 6 * 60 * 60 * 1000
+  const now = options?.now ?? (() => new Date())
+  const repository = options?.repository
 
-  let cachedAt = 0
+  let cachedSnapshotDate: string | null = null
   let cachedLookup = new Map<string, OpenRouterModelPricing>()
+  let refreshing: Promise<void> | null = null
+
+  function loadSnapshot(snapshotDate: string): boolean {
+    if (!repository) {
+      return false
+    }
+
+    const rows = repository.listSnapshot(snapshotDate)
+    if (rows.length === 0) {
+      return false
+    }
+
+    cachedLookup = buildLookupFromCache(rows)
+    cachedSnapshotDate = snapshotDate
+    return true
+  }
+
+  async function refreshForDate(snapshotDate: string): Promise<void> {
+    if (refreshing) {
+      return refreshing
+    }
+
+    refreshing = (async () => {
+      const response = await fetchImpl("https://openrouter.ai/api/v1/models")
+      if (!response.ok) {
+        throw new Error(`OpenRouter pricing request failed: ${response.status}`)
+      }
+
+      const body = (await response.json()) as OpenRouterModelsResponse
+      const nextLookup = buildPricingLookup(body.data ?? [])
+
+      if (repository) {
+        repository.replaceSnapshot(
+          snapshotDate,
+          serializePricingLookup(nextLookup),
+        )
+      }
+
+      cachedLookup = nextLookup
+      cachedSnapshotDate = snapshotDate
+    })()
+
+    try {
+      await refreshing
+    } finally {
+      refreshing = null
+    }
+  }
 
   async function refreshIfNeeded(): Promise<void> {
-    if (Date.now() - cachedAt < cacheTtlMs && cachedLookup.size > 0) {
+    const today = formatNaturalDay(now())
+    if (cachedSnapshotDate === today && cachedLookup.size > 0) {
       return
     }
 
-    const response = await fetchImpl("https://openrouter.ai/api/v1/models")
-    if (!response.ok) {
-      throw new Error(`OpenRouter pricing request failed: ${response.status}`)
+    if (loadSnapshot(today)) {
+      return
     }
 
-    const body = (await response.json()) as OpenRouterModelsResponse
-    cachedLookup = buildPricingLookup(body.data ?? [])
-    cachedAt = Date.now()
+    if (repository) {
+      const latestSnapshotDate = repository.getLatestSnapshotDate()
+      if (latestSnapshotDate && latestSnapshotDate !== today) {
+        loadSnapshot(latestSnapshotDate)
+      }
+    }
+
+    await refreshForDate(today)
   }
 
   return {
@@ -123,9 +246,6 @@ export function createOpenRouterPricingService(options?: {
       try {
         await refreshIfNeeded()
       } catch {
-        if (cachedLookup.size === 0) {
-          cachedAt = Date.now()
-        }
         return cachedLookup.get(normalizeModelKey(model)) ?? null
       }
 
