@@ -27,12 +27,10 @@ export function formatUsd(value: number): string {
     return `$${value.toFixed(4)}`
   }
 
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "USD",
+  return `$${new Intl.NumberFormat(undefined, {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  }).format(value)
+    maximumFractionDigits: 2,
+  }).format(value)}`
 }
 
 export function formatTimestamp(value: string | null): string {
