@@ -105,3 +105,27 @@
 
 - 估价为混合单价（input/output token 不区分），精度受模型定价差异影响
 - 日历模式使用浏览器本地时区计算边界，服务器存储 UTC，在正偏移时区行为符合预期
+
+---
+
+## 追加变更（同日）
+
+### 7. GPT-5 系列 `max_tokens` → `max_completion_tokens` 兼容
+
+**文件**: `src/routes/chat-completions/handler.ts`, `src/routes/messages/non-stream-translation.ts`, `src/services/copilot/create-chat-completions.ts`
+
+GPT-5 系列模型（`gpt-5.*`）不支持 `max_tokens` 参数，必须使用 `max_completion_tokens`。
+
+- 检测条件：`model.toLowerCase().startsWith("gpt-5")`
+- `/v1/messages`（Anthropic 翻译层）：在 `translateToOpenAI()` 中做参数转换
+- `/v1/chat/completions`（OpenAI 直通）：在 `handleCompletion()` 中做参数转换
+- 两条路径都覆盖了"用户未传"和"用户已传"两种场景
+
+**根因**: Claude Code 通过 `/v1/messages` 发请求，Anthropic payload 的 `max_tokens` 被直接透传给 Copilot API，GPT-5 拒绝了。
+
+### 8. 模型卡片标注 Display Name / Model ID + 复制按钮
+
+**文件**: `dashboard/src/components/dashboard/model-aliases-panel.tsx`
+
+- 每个模型卡片增加 `Display Name` 和 `Model ID` 标签，区分 GitHub Copilot 返回的展示名和实际 API 用的原始 id
+- Model ID 旁边加复制按钮（点击变绿色勾号 1.5s），方便用户复制准确的 model id 用于配置
