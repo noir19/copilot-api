@@ -31,6 +31,118 @@
 
 A reverse-engineered proxy for the GitHub Copilot API that exposes it as an OpenAI and Anthropic compatible service. This allows you to use GitHub Copilot with any tool that supports the OpenAI Chat Completions API or the Anthropic Messages API, including to power [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview).
 
+## Architecture
+
+### Request Flow
+
+There are two distinct request paths depending on the client protocol:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         CLIENT                              │
+│                                                             │
+│  Anthropic format           OpenAI format                   │
+│  POST /v1/messages          POST /v1/chat/completions        │
+└────────────┬────────────────────────┬───────────────────────┘
+             │                        │
+             ▼                        ▼
+┌────────────────────────────────────────────────────────────┐
+│                    Hono HTTP Server                         │
+│                    src/server.ts                            │
+│                                                             │
+│  /v1/messages ──► messages/handler.ts                       │
+│                   translateToOpenAI()    ◄── format convert │
+│                                                             │
+│  /v1/chat/completions ──► chat-completions/handler.ts       │
+│                           (native OpenAI, no conversion)    │
+└────────────────────────────┬───────────────────────────────┘
+                             │
+                             │  Both paths converge here
+                             ▼
+┌────────────────────────────────────────────────────────────┐
+│              createChatCompletions()                        │
+│        src/services/copilot/create-chat-completions.ts      │
+│                                                             │
+│  Attaches: Authorization: Bearer ${state.copilotToken}      │
+│  Target:   https://api.githubcopilot.com                    │
+└────────────────────────────┬───────────────────────────────┘
+                             │
+                             ▼
+                    GitHub Copilot API
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────┐
+│                    Response path                            │
+│                                                             │
+│  /v1/messages ──► translateToAnthropic()  (format convert) │
+│  /v1/chat/completions ──► passthrough                       │
+│                                                             │
+│  Both paths: enqueueRequestLog() ──► SQLite async sink      │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Anthropic ↔ OpenAI Format Translation
+
+Requests arriving at `/v1/messages` go through a two-way translation layer in `src/routes/messages/`:
+
+| Direction | Function | File |
+|-----------|----------|------|
+| Request: Anthropic → OpenAI | `translateToOpenAI()` | `non-stream-translation.ts` |
+| Response: OpenAI → Anthropic (non-stream) | `translateToAnthropic()` | `non-stream-translation.ts` |
+| Response: OpenAI → Anthropic (stream) | `translateChunkToAnthropicEvents()` | `stream-translation.ts` |
+
+Key field mappings (Anthropic → OpenAI):
+
+| Anthropic field | OpenAI field | Notes |
+|---|---|---|
+| `model` | `model` | resolved via `resolveModelName()` |
+| `max_tokens` | `max_tokens` | non-GPT-5 models |
+| `max_tokens` | `max_completion_tokens` | GPT-5 models only |
+| `stop_sequences` | `stop` | |
+| `system` (string or block array) | `messages[0]` role=`system` | block array joined with `\n\n` |
+| user `tool_result` blocks | role=`tool` messages | split into separate messages |
+| assistant `tool_use` blocks | `tool_calls` array | |
+| `thinking` blocks | merged into `content` text | OpenAI has no thinking concept |
+| `tool_choice: any` | `"required"` | |
+| `tool_choice: tool` | `{type:"function", function:{name}}` | |
+| tools `input_schema` | tools `parameters` | |
+
+> **Note:** `thinking` blocks are one-way lossy — they are sent to Copilot as plain text but Copilot responses never contain thinking blocks.
+
+### Model Resolution
+
+Every request model name goes through `resolveModelName()` (`src/lib/model-map.ts`) before reaching Copilot:
+
+```
+Requested model name
+        │
+        ▼
+1. SQLite alias lookup (model_aliases table, in-memory cache)
+        │ hit → resolved name
+        │ miss ↓
+2. Exact match against state.models list
+        │ hit → original name
+        │ miss ↓
+3. Dash-to-dot conversion (e.g. claude-sonnet-4-6 → claude-sonnet-4.6)
+   (can be disabled in dashboard Settings)
+        │ hit → matched name
+        │ miss ↓
+4. Passthrough (original name sent as-is)
+```
+
+### Data Layer (SQLite)
+
+All runtime data is persisted in a single SQLite database (WAL mode):
+
+| Table | Purpose |
+|---|---|
+| `request_logs` | Async request log ingestion; used for dashboard trends, recent requests, cost estimates |
+| `model_aliases` | Request-path alias resolution; keyed by `(source_model, enabled)`, loaded into in-memory cache on startup, refreshed after writes |
+| `dashboard_meta` | Dashboard settings (retention policy, dash-to-dot toggle, etc.) |
+| `openrouter_pricing_cache` | Daily snapshot of OpenRouter pricing; used to estimate equivalent cost |
+
+Default DB path: `~/.local/share/copilot-api/copilot-api.db` — override with `COPILOT_API_DB_PATH`.
+
 ## Features
 
 - **OpenAI & Anthropic Compatibility**: Exposes GitHub Copilot as an OpenAI-compatible (`/v1/chat/completions`, `/v1/models`, `/v1/embeddings`) and Anthropic-compatible (`/v1/messages`) API.
@@ -153,7 +265,7 @@ docker run -p 4141:4141 -v $(pwd)/copilot-data:/root/.local/share/copilot-api co
 The dashboard now uses SQLite as the source of truth for runtime metadata:
 
 - `request_logs`: async request log ingestion for dashboard trends, recent requests, and troubleshooting
-- `model_aliases`: request-path alias resolution, replacing the old `model-aliases.json` workflow
+- `model_aliases`: request-path alias resolution, replacing the old `model-aliases.json` workflow. The table is keyed by `(source_model, enabled)` so one request model can keep separate enabled and disabled configurations, while duplicate rows for the same request model and status are rejected.
 
 `model_aliases` are loaded into an in-memory cache on startup and refreshed after dashboard writes, so requests do not query SQLite on every model lookup.
 
@@ -234,6 +346,86 @@ The dashboard is currently localized in Chinese and includes:
 - 模型别名管理，直接写入 `model_aliases`
 
 If you want to change model aliases outside the UI, update the SQLite database directly instead of using `model-aliases.json`.
+
+### Dashboard Architecture
+
+The dashboard has two components: a **frontend SPA** (built to `dist/dashboard/`) served directly by the proxy, and a **backend API** mounted at `/api/dashboard`.
+
+```
+Browser
+  │
+  ├── GET /dashboard           ← static HTML shell (src/routes/dashboard/assets.ts)
+  ├── GET /dashboard/assets/*  ← JS/CSS bundles
+  │
+  └── API calls to /api/dashboard/*
+        │
+        ▼
+  createDashboardRoute()  (src/routes/dashboard/route.ts)
+        │
+        ├── GET /overview          ← request totals, error rate, latency, token sums
+        ├── GET /usage             ← live Copilot quota (proxied from GitHub API)
+        ├── GET /models            ← model breakdown + OpenRouter cost estimate
+        ├── GET /time-series       ← bucketed trend data (configurable bucket size)
+        ├── GET /requests          ← paginated request log (server-side filtering)
+        ├── GET /requests/count    ← total count for pagination
+        ├── GET /supported-models  ← Copilot model list (from state.models cache)
+        ├── GET /aliases           ← list aliases + in-memory cache snapshot
+        ├── POST/PUT/DELETE /aliases/:id  ← CRUD, triggers in-memory reload
+        └── GET/POST /settings     ← dashboard_meta + sink config
+```
+
+### Request Log Data Flow
+
+Every API request (both `/v1/messages` and `/v1/chat/completions`) is logged asynchronously through a multi-stage pipeline:
+
+```
+Request handler (messages/handler.ts or chat-completions/handler.ts)
+        │
+        │ enqueueRequestLog()
+        ▼
+Request Sink  (src/db/request-sink.ts)
+  In-memory queue (max 10,000 records, oldest dropped on overflow)
+        │
+        │ flush every 500ms in batches of 100
+        ▼
+writeBatch()  (src/db/runtime.ts)
+        │
+        ├── for each record with no pricing yet:
+        │     OpenRouter Pricing Service
+        │       └── daily SQLite snapshot (openrouter_pricing_cache)
+        │             └── if stale: fetch https://openrouter.ai/api/v1/models
+        │     → enrich record with estimated USD cost
+        │
+        ▼
+requestLogRepository.insertBatch()
+        │
+        ▼
+SQLite: request_logs table
+        │
+        └── on startup and every 6h: prune records older than retention cutoff
+            (default 15 days, configurable via dashboard Settings or env var)
+```
+
+Sink config (flush interval, batch size, queue size, retry) can be adjusted live from the dashboard Settings tab and is persisted to `dashboard_meta`.
+
+### Model Alias Write Path
+
+Alias changes made in the dashboard take effect immediately without restart:
+
+```
+Dashboard UI  POST/PUT/DELETE /api/dashboard/aliases/:id
+        │
+        ▼
+modelAliasRepository  (SQLite model_aliases table)
+        │
+        ▼
+modelAliasStore.reload()  (rebuilds in-memory Map)
+        │
+        ▼
+resolveModelName()  uses the updated Map on the next request
+```
+
+`model_aliases` uses `(source_model, enabled)` as its composite primary key while keeping `id` as the stable row identifier for dashboard edit/delete operations. Duplicate writes return a `409 model_alias_conflict` response with the conflicting request model and status instead of a generic internal error.
 
 ## Using with npx
 

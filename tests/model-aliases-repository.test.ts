@@ -7,6 +7,7 @@ import path from "node:path"
 import {
   type CreateModelAliasInput,
   createModelAliasRepository,
+  ModelAliasConflictError,
 } from "~/db/model-aliases"
 import { initDatabase } from "~/db/schema"
 
@@ -43,6 +44,48 @@ describe("model aliases repository", () => {
     expect(records[0]?.sourceModel).toBe(input.sourceModel)
     expect(records[0]?.targetModel).toBe(input.targetModel)
     expect(records[0]?.enabled).toBe(true)
+  })
+
+  test("allows one enabled and one disabled alias for the same request model", async () => {
+    const repository = createModelAliasRepository(db)
+
+    await repository.create({
+      sourceModel: "haiku",
+      targetModel: "claude-haiku-4-5",
+      enabled: true,
+    })
+    await repository.create({
+      sourceModel: "HAIKU",
+      targetModel: "claude-haiku-4-5-disabled",
+      enabled: false,
+    })
+
+    const records = await repository.list()
+
+    expect(records).toHaveLength(2)
+    expect(records.map((record) => record.enabled).sort()).toEqual([
+      false,
+      true,
+    ])
+    expect(records.every((record) => record.sourceModel === "haiku")).toBe(true)
+  })
+
+  test("rejects duplicate aliases for the same request model and enabled state", async () => {
+    const repository = createModelAliasRepository(db)
+
+    await repository.create({
+      sourceModel: "haiku",
+      targetModel: "claude-haiku-4-5",
+      enabled: true,
+    })
+
+    expect(() =>
+      repository.create({
+        sourceModel: "HAIKU",
+        targetModel: "claude-haiku-4-5-latest",
+        enabled: true,
+      }),
+    ).toThrow(ModelAliasConflictError)
   })
 
   test("updates aliases and preserves the source-to-target relationship", async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Hono } from "hono"
+import { ModelAliasConflictError } from "~/db/model-aliases"
 import { createDashboardRoute } from "~/routes/dashboard/route"
 import type { CopilotUsageResponse } from "~/services/github/get-copilot-usage"
 
@@ -66,6 +67,10 @@ function createReadOnlyApp(): Hono {
     "/api/dashboard",
     createDashboardRoute({
       createAlias(input) {
+        if (input.sourceModel === "claude-sonnet" && input.enabled) {
+          throw new ModelAliasConflictError(input.sourceModel, input.enabled)
+        }
+
         return Promise.resolve({
           id: "alias-2",
           sourceModel: input.sourceModel,
@@ -425,5 +430,27 @@ describe("dashboard route", () => {
     >
     expect(list.data).toHaveLength(1)
     expect(list.data[0]?.id).toBe("alias-1")
+  })
+
+  test("returns a clear conflict response for duplicate model alias status", async () => {
+    const app = createReadOnlyApp()
+
+    const response = await app.request("/api/dashboard/aliases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        sourceModel: "claude-sonnet",
+        targetModel: "claude-sonnet-4-5-latest",
+        enabled: true,
+      }),
+    })
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: {
+        message: "模型别名已存在：请求模型 claude-sonnet 已有启用状态的配置",
+        type: "model_alias_conflict",
+      },
+    })
   })
 })

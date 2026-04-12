@@ -4,6 +4,10 @@ import type {
   CreateModelAliasInput,
   UpdateModelAliasInput,
 } from "~/db/model-aliases"
+import {
+  ModelAliasConflictError,
+  ModelAliasNotFoundError,
+} from "~/db/model-aliases"
 import type {
   ModelBreakdownRow,
   RecentRequestRow,
@@ -140,17 +144,55 @@ export function createDashboardRoute(deps: DashboardRouteDeps) {
     })
   })
 
+  function toModelAliasErrorResponse(error: unknown) {
+    if (error instanceof ModelAliasConflictError) {
+      return {
+        body: {
+          error: {
+            message: error.message,
+            type: "model_alias_conflict",
+          },
+        },
+        status: 409 as const,
+      }
+    }
+
+    if (error instanceof ModelAliasNotFoundError) {
+      return {
+        body: {
+          error: {
+            message: error.message,
+            type: "model_alias_not_found",
+          },
+        },
+        status: 404 as const,
+      }
+    }
+
+    throw error
+  }
+
   route.post("/aliases", async (c) => {
     const payload = await c.req.json<CreateModelAliasInput>()
-    const created = await deps.createAlias(payload)
-    return c.json(created, 201)
+    try {
+      const created = await deps.createAlias(payload)
+      return c.json(created, 201)
+    } catch (error) {
+      const response = toModelAliasErrorResponse(error)
+      return c.json(response.body, response.status)
+    }
   })
 
   route.put("/aliases/:id", async (c) => {
     const id = c.req.param("id")
     const payload = await c.req.json<UpdateModelAliasInput>()
-    const updated = await deps.updateAlias(id, payload)
-    return c.json(updated)
+    try {
+      const updated = await deps.updateAlias(id, payload)
+      return c.json(updated)
+    } catch (error) {
+      const response = toModelAliasErrorResponse(error)
+      return c.json(response.body, response.status)
+    }
   })
 
   route.delete("/aliases/:id", async (c) => {

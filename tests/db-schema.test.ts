@@ -123,4 +123,55 @@ describe("database schema migrations", () => {
     expect(alias?.source_model).toBe("haiku")
     expect(alias?.target_model).toBe("claude-haiku-4-5")
   })
+
+  test("migrates model_aliases to request model and enabled composite primary key", () => {
+    db.run(`
+      CREATE TABLE model_aliases (
+        id TEXT PRIMARY KEY,
+        source_model TEXT NOT NULL UNIQUE,
+        target_model TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `)
+    db.run(
+      `INSERT INTO model_aliases (
+        id, source_model, target_model, enabled, created_at, updated_at
+      ) VALUES (
+        'alias-1', 'haiku', 'claude-haiku-4-5', 1, '2026-04-08T12:00:00.000Z', '2026-04-08T12:00:00.000Z'
+      )`,
+    )
+
+    initDatabase(db)
+
+    const columns = db
+      .query<{ name: string; pk: number }, []>(
+        "PRAGMA table_info(model_aliases)",
+      )
+      .all()
+    const primaryKeyColumns = columns
+      .filter((column) => column.pk > 0)
+      .sort((a, b) => a.pk - b.pk)
+      .map((column) => column.name)
+
+    db.run(
+      `INSERT INTO model_aliases (
+        id, source_model, target_model, enabled, created_at, updated_at
+      ) VALUES (
+        'alias-2', 'haiku', 'claude-haiku-4-5-disabled', 0, '2026-04-08T12:01:00.000Z', '2026-04-08T12:01:00.000Z'
+      )`,
+    )
+
+    expect(primaryKeyColumns).toEqual(["source_model", "enabled"])
+    expect(() =>
+      db.run(
+        `INSERT INTO model_aliases (
+            id, source_model, target_model, enabled, created_at, updated_at
+          ) VALUES (
+            'alias-3', 'haiku', 'claude-haiku-4-5-duplicate', 1, '2026-04-08T12:02:00.000Z', '2026-04-08T12:02:00.000Z'
+          )`,
+      ),
+    ).toThrow()
+  })
 })

@@ -9,7 +9,121 @@
 
 这个项目把 GitHub Copilot 暴露为 OpenAI 兼容和 Anthropic 兼容接口，方便接入 Claude Code 以及其他支持这两类 API 的工具。
 
-这份中文 README 重点解释最近这次认证链路改造，尤其是：
+## 架构说明
+
+### 请求流量走向
+
+根据客户端协议不同，请求分两条路径处理：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         客户端                               │
+│                                                             │
+│  Anthropic 格式                  OpenAI 格式                 │
+│  POST /v1/messages               POST /v1/chat/completions   │
+└────────────┬─────────────────────────────┬──────────────────┘
+             │                             │
+             ▼                             ▼
+┌────────────────────────────────────────────────────────────┐
+│                   Hono HTTP Server                          │
+│                   src/server.ts                             │
+│                                                             │
+│  /v1/messages ──► messages/handler.ts                       │
+│                   translateToOpenAI()    ◄── 格式转换        │
+│                                                             │
+│  /v1/chat/completions ──► chat-completions/handler.ts       │
+│                           （原生 OpenAI 格式，无需转换）       │
+└────────────────────────────┬───────────────────────────────┘
+                             │
+                             │  两条路径在此汇合
+                             ▼
+┌────────────────────────────────────────────────────────────┐
+│              createChatCompletions()                        │
+│        src/services/copilot/create-chat-completions.ts      │
+│                                                             │
+│  携带：Authorization: Bearer ${state.copilotToken}          │
+│  目标：https://api.githubcopilot.com                        │
+└────────────────────────────┬───────────────────────────────┘
+                             │
+                             ▼
+                    GitHub Copilot API
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────┐
+│                      响应路径                                │
+│                                                             │
+│  /v1/messages ──► translateToAnthropic()  （格式转回）       │
+│  /v1/chat/completions ──► 直接透传                           │
+│                                                             │
+│  两条路径均：enqueueRequestLog() ──► SQLite 异步写入          │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Anthropic ↔ OpenAI 格式转换
+
+到达 `/v1/messages` 的请求经过双向翻译层（`src/routes/messages/`）：
+
+| 方向 | 函数 | 文件 |
+|---|---|---|
+| 请求：Anthropic → OpenAI | `translateToOpenAI()` | `non-stream-translation.ts` |
+| 响应：OpenAI → Anthropic（非流式）| `translateToAnthropic()` | `non-stream-translation.ts` |
+| 响应：OpenAI → Anthropic（流式）| `translateChunkToAnthropicEvents()` | `stream-translation.ts` |
+
+关键字段映射（Anthropic → OpenAI）：
+
+| Anthropic 字段 | OpenAI 字段 | 备注 |
+|---|---|---|
+| `model` | `model` | 经 `resolveModelName()` 解析 |
+| `max_tokens` | `max_tokens` | 非 GPT-5 模型 |
+| `max_tokens` | `max_completion_tokens` | GPT-5 模型专用 |
+| `stop_sequences` | `stop` | |
+| `system`（字符串或 block 数组）| `messages[0]` role=`system` | block 数组以 `\n\n` 合并为文本 |
+| 用户侧 `tool_result` blocks | role=`tool` messages | 拆成独立消息 |
+| 助手侧 `tool_use` blocks | `tool_calls` 数组 | |
+| `thinking` blocks | 合并进 `content` 文本 | OpenAI 无 thinking 概念 |
+| `tool_choice: any` | `"required"` | |
+| `tool_choice: tool` | `{type:"function", function:{name}}` | |
+| tools `input_schema` | tools `parameters` | |
+
+> **注意**：`thinking` blocks 是单向有损转换——它们会被合并为普通文本发给 Copilot，但 Copilot 的响应中不会包含 thinking blocks。
+
+### 模型名称解析
+
+每条请求的模型名称在到达 Copilot 之前，都会经过 `resolveModelName()`（`src/lib/model-map.ts`）：
+
+```
+请求中的模型名称
+        │
+        ▼
+1. SQLite alias 查找（model_aliases 表，内存缓存）
+        │ 命中 → 返回别名目标
+        │ 未命中 ↓
+2. 精确匹配 state.models 列表
+        │ 命中 → 原名
+        │ 未命中 ↓
+3. Dash-to-dot 转换（如 claude-sonnet-4-6 → claude-sonnet-4.6）
+   （可在 Dashboard 设置中关闭）
+        │ 命中 → 匹配名
+        │ 未命中 ↓
+4. 透传（原样发给 Copilot）
+```
+
+### 数据层（SQLite）
+
+所有运行时数据持久化到单一 SQLite 数据库（WAL 模式）：
+
+| 表 | 用途 |
+|---|---|
+| `request_logs` | 异步请求日志；用于 Dashboard 趋势图、最近请求、费用估算 |
+| `model_aliases` | 请求路径别名解析；以 `(source_model, enabled)` 为复合主键，启动时加载到内存缓存，写入后自动刷新 |
+| `dashboard_meta` | Dashboard 设置（日志保留策略、dash-to-dot 开关等） |
+| `openrouter_pricing_cache` | OpenRouter 定价每日快照；用于估算等价费用 |
+
+默认数据库路径：`~/.local/share/copilot-api/copilot-api.db`，通过 `COPILOT_API_DB_PATH` 覆盖。
+
+---
+
+这份中文 README 以下内容重点解释最近这次认证链路改造，尤其是：
 
 - GitHub token 持久化从“只存 access token”升级为“可保存 refresh metadata，并自动 refresh”
 - Copilot token 从“启动时拿一次 + 固定定时器刷新”升级为“动态调度刷新，并在 `401 token expired` 时自动重试”
@@ -428,9 +542,93 @@ docker run \
 
 ## 一句话总结
 
-这次改造的本质是把认证模型从“登录一次，尽量撑着用”改成了“把 GitHub token 和 Copilot token 都纳入运行时生命周期管理”。
+这次改造的本质是把认证模型从”登录一次，尽量撑着用”改成了”把 GitHub token 和 Copilot token 都纳入运行时生命周期管理”。
 
 最关键的两点就是：
 
 - [src/lib/token.ts](/Users/ken/Desktop/code/ai/copilot-api/src/lib/token.ts) 负责 GitHub token 的结构化持久化、自动 refresh、文件 watch 与恢复
 - [src/services/copilot/fetch-with-copilot-token.ts](/Users/ken/Desktop/code/ai/copilot-api/src/services/copilot/fetch-with-copilot-token.ts) 负责 Copilot 请求路径上的 `401 token expired` 自愈与重试
+
+---
+
+## Dashboard 架构
+
+Dashboard 由两部分组成：前端 SPA（构建后输出到 `dist/dashboard/`，由代理服务直接托管）和后端 API（挂载在 `/api/dashboard`）。
+
+### API 路由结构
+
+```
+浏览器
+  │
+  ├── GET /dashboard           ← 静态 HTML 壳（src/routes/dashboard/assets.ts）
+  ├── GET /dashboard/assets/*  ← JS/CSS 资源包
+  │
+  └── 调用 /api/dashboard/*
+        │
+        ▼
+  createDashboardRoute()  (src/routes/dashboard/route.ts)
+        │
+        ├── GET /overview          ← 请求总量、错误率、延迟、token 统计
+        ├── GET /usage             ← 实时 Copilot 配额（转发自 GitHub API）
+        ├── GET /models            ← 模型分布 + OpenRouter 费用估算
+        ├── GET /time-series       ← 可配置粒度的趋势分桶数据
+        ├── GET /requests          ← 服务端分页的请求日志（支持过滤）
+        ├── GET /requests/count    ← 分页用总计数
+        ├── GET /supported-models  ← Copilot 支持的模型列表（来自 state.models 缓存）
+        ├── GET /aliases           ← 别名列表 + 内存缓存快照
+        ├── POST/PUT/DELETE /aliases/:id  ← 别名 CRUD，每次写入触发内存重新加载
+        └── GET/POST /settings     ← dashboard_meta 配置 + sink 参数
+```
+
+### 请求日志数据流
+
+每条 API 请求（包括 `/v1/messages` 和 `/v1/chat/completions`）都会经过异步多阶段管道写入日志：
+
+```
+请求处理器（messages/handler.ts 或 chat-completions/handler.ts）
+        │
+        │ enqueueRequestLog()
+        ▼
+Request Sink  (src/db/request-sink.ts)
+  内存队列（最多 10,000 条，超出时丢弃最早的记录）
+        │
+        │ 每 500ms 批量刷写，每批最多 100 条
+        ▼
+writeBatch()  (src/db/runtime.ts)
+        │
+        ├── 对每条尚无定价的记录：
+        │     OpenRouter 定价服务
+        │       └── SQLite 每日快照（openrouter_pricing_cache）
+        │             └── 快照过期时：请求 https://openrouter.ai/api/v1/models 更新
+        │     → 补充估算 USD 费用字段
+        │
+        ▼
+requestLogRepository.insertBatch()
+        │
+        ▼
+SQLite: request_logs 表
+        │
+        └── 启动时 + 每 6 小时：清理超过保留期的记录
+            （默认 15 天，可通过 Dashboard 设置或环境变量调整）
+```
+
+Sink 配置（刷写间隔、批大小、队列上限、重试策略）可在 Dashboard 的 Settings 页实时调整，变更会持久化到 `dashboard_meta`。
+
+### 模型别名写入链路
+
+Dashboard 中对别名的增删改立即生效，无需重启：
+
+```
+Dashboard UI  POST/PUT/DELETE /api/dashboard/aliases/:id
+        │
+        ▼
+modelAliasRepository  （写入 SQLite model_aliases 表）
+        │
+        ▼
+modelAliasStore.reload()  （重建内存 Map）
+        │
+        ▼
+resolveModelName()  下一条请求即使用最新的映射
+```
+
+`model_aliases` 使用 `(source_model, enabled)` 作为复合主键，同时保留 `id` 作为 Dashboard 编辑/删除时使用的稳定行标识。同一个请求模型可以同时保留一条启用配置和一条停用配置；同一请求模型 + 同一状态重复写入时，接口会返回明确的 `409 model_alias_conflict`，而不是泛泛的内部错误。

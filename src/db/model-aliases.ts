@@ -7,6 +7,27 @@ import type {
   ModelAliasRepository,
 } from "~/lib/model-alias-store"
 
+export class ModelAliasConflictError extends Error {
+  readonly enabled: boolean
+  readonly sourceModel: string
+
+  constructor(sourceModel: string, enabled: boolean) {
+    super(
+      `模型别名已存在：请求模型 ${sourceModel} 已有${enabled ? "启用" : "停用"}状态的配置`,
+    )
+    this.name = "ModelAliasConflictError"
+    this.enabled = enabled
+    this.sourceModel = sourceModel
+  }
+}
+
+export class ModelAliasNotFoundError extends Error {
+  constructor(id: string) {
+    super(`模型别名不存在：${id}`)
+    this.name = "ModelAliasNotFoundError"
+  }
+}
+
 export interface CreateModelAliasInput {
   enabled: boolean
   sourceModel: string
@@ -30,6 +51,10 @@ interface ModelAliasRow {
 
 function normalizeModelId(value: string): string {
   return value.trim().toLowerCase()
+}
+
+function isSqliteConstraintError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("constraint failed")
 }
 
 function toRecord(row: ModelAliasRow): ModelAliasRecord {
@@ -70,23 +95,30 @@ export function createModelAliasRepository(
       const sourceModel = normalizeModelId(input.sourceModel)
       const targetModel = normalizeModelId(input.targetModel)
 
-      db.query(
-        `INSERT INTO model_aliases (
-          id,
-          source_model,
-          target_model,
-          enabled,
-          created_at,
-          updated_at
-        ) VALUES ($id, $source_model, $target_model, $enabled, $created_at, $updated_at)`,
-      ).run({
-        $created_at: now,
-        $enabled: input.enabled ? 1 : 0,
-        $id: id,
-        $source_model: sourceModel,
-        $target_model: targetModel,
-        $updated_at: now,
-      })
+      try {
+        db.query(
+          `INSERT INTO model_aliases (
+            id,
+            source_model,
+            target_model,
+            enabled,
+            created_at,
+            updated_at
+          ) VALUES ($id, $source_model, $target_model, $enabled, $created_at, $updated_at)`,
+        ).run({
+          $created_at: now,
+          $enabled: input.enabled ? 1 : 0,
+          $id: id,
+          $source_model: sourceModel,
+          $target_model: targetModel,
+          $updated_at: now,
+        })
+      } catch (error) {
+        if (isSqliteConstraintError(error)) {
+          throw new ModelAliasConflictError(sourceModel, input.enabled)
+        }
+        throw error
+      }
 
       return Promise.resolve({
         createdAt: now,
@@ -104,27 +136,34 @@ export function createModelAliasRepository(
     ): Promise<ModelAliasRecord> {
       const existing = await this.getById(id)
       if (!existing) {
-        throw new Error(`Model alias ${id} not found`)
+        throw new ModelAliasNotFoundError(id)
       }
 
       const updatedAt = new Date().toISOString()
       const sourceModel = normalizeModelId(input.sourceModel)
       const targetModel = normalizeModelId(input.targetModel)
 
-      db.query(
-        `UPDATE model_aliases
-         SET source_model = $source_model,
-             target_model = $target_model,
-             enabled = $enabled,
-             updated_at = $updated_at
-         WHERE id = $id`,
-      ).run({
-        $enabled: input.enabled ? 1 : 0,
-        $id: id,
-        $source_model: sourceModel,
-        $target_model: targetModel,
-        $updated_at: updatedAt,
-      })
+      try {
+        db.query(
+          `UPDATE model_aliases
+           SET source_model = $source_model,
+               target_model = $target_model,
+               enabled = $enabled,
+               updated_at = $updated_at
+           WHERE id = $id`,
+        ).run({
+          $enabled: input.enabled ? 1 : 0,
+          $id: id,
+          $source_model: sourceModel,
+          $target_model: targetModel,
+          $updated_at: updatedAt,
+        })
+      } catch (error) {
+        if (isSqliteConstraintError(error)) {
+          throw new ModelAliasConflictError(sourceModel, input.enabled)
+        }
+        throw error
+      }
 
       return {
         ...existing,
