@@ -1,5 +1,5 @@
 import { Check, Copy } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import {
   type AliasDraft,
@@ -14,6 +14,10 @@ import {
   updateAlias,
 } from "../../lib/dashboard-api"
 import { formatTimestamp } from "../../lib/format"
+import {
+  filterModelAliases,
+  type ModelAliasStatusFilter,
+} from "../../lib/model-alias-filter"
 import { cn } from "../../lib/utils"
 import { Badge } from "../ui/badge"
 import { Button } from "../ui/button"
@@ -52,6 +56,25 @@ export function ModelAliasesPanel({
   const [isSaving, setIsSaving] = useState(false)
   const [dashToDotEnabled, setDashToDotEnabled] = useState(true)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [aliasQuery, setAliasQuery] = useState("")
+  const [aliasStatusFilter, setAliasStatusFilter] =
+    useState<ModelAliasStatusFilter>("all")
+  const filteredAliases = useMemo(
+    () =>
+      filterModelAliases(aliases.data, {
+        query: aliasQuery,
+        status: aliasStatusFilter,
+      }),
+    [aliases.data, aliasQuery, aliasStatusFilter],
+  )
+  const uniqueSupportedModels = useMemo(() => {
+    const seenModelIds = new Set<string>()
+    return supportedModels.filter((model) => {
+      if (seenModelIds.has(model.id)) return false
+      seenModelIds.add(model.id)
+      return true
+    })
+  }, [supportedModels])
 
   function copyModelId(id: string) {
     void navigator.clipboard.writeText(id).then(() => {
@@ -149,178 +172,15 @@ export function ModelAliasesPanel({
           {error}
         </div>
       ) : null}
-      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>模型别名</CardTitle>
-            <CardDescription>
-              这张表控制客户端请求模型如何映射到 Copilot 实际目标模型，例如
-              <code className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
-                claude-opus-4-6
-              </code>
-              {"->"}
-              <code className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
-                claude-opus-4.6
-              </code>
-              。
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-3">
-              <Badge>版本 {aliases.meta.version}</Badge>
-              <Badge>共 {aliases.meta.count} 条</Badge>
-              <Badge>启用 {aliases.meta.enabledCount} 条</Badge>
-              <Badge>最近加载 {formatTimestamp(aliases.meta.loadedAt)}</Badge>
-            </div>
-
-            <TableWrapper>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>请求模型</TableHead>
-                    <TableHead>Copilot 目标模型</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead>更新时间</TableHead>
-                    <TableHead className="w-[180px]">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {aliases.data.length === 0 ? (
-                    <TableRow>
-                      <TableCell className="py-6 text-slate-500" colSpan={5}>
-                        还没有模型别名。
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    aliases.data.map((alias) => {
-                      const isEditing = editingId === alias.id
-
-                      return (
-                        <TableRow key={alias.id}>
-                          <TableCell>
-                            {isEditing ? (
-                              <Input
-                                onChange={(event) =>
-                                  setEditingDraft((current) => ({
-                                    ...current,
-                                    sourceModel: event.target.value,
-                                  }))
-                                }
-                                value={editingDraft.sourceModel}
-                              />
-                            ) : (
-                              <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-800">
-                                {alias.sourceModel}
-                              </code>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {isEditing ? (
-                              <Input
-                                onChange={(event) =>
-                                  setEditingDraft((current) => ({
-                                    ...current,
-                                    targetModel: event.target.value,
-                                  }))
-                                }
-                                value={editingDraft.targetModel}
-                              />
-                            ) : (
-                              <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-800">
-                                {alias.targetModel}
-                              </code>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {isEditing ? (
-                              <label className="flex items-center gap-2 whitespace-nowrap text-sm text-slate-600">
-                                <input
-                                  checked={editingDraft.enabled}
-                                  onChange={(event) =>
-                                    setEditingDraft((current) => ({
-                                      ...current,
-                                      enabled: event.target.checked,
-                                    }))
-                                  }
-                                  type="checkbox"
-                                />
-                                启用
-                              </label>
-                            ) : (
-                              <Badge
-                                className={cn(
-                                  alias.enabled
-                                    ? "bg-emerald-50 text-emerald-700"
-                                    : "bg-slate-100 text-slate-500",
-                                )}
-                              >
-                                {alias.enabled ? "启用" : "停用"}
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {formatTimestamp(alias.updatedAt)}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              {isEditing ? (
-                                <>
-                                  <Button
-                                    disabled={isSaving}
-                                    onClick={() => handleUpdate(alias.id)}
-                                    size="sm"
-                                  >
-                                    保存
-                                  </Button>
-                                  <Button
-                                    disabled={isSaving}
-                                    onClick={() => setEditingId(null)}
-                                    size="sm"
-                                    variant="outline"
-                                  >
-                                    取消
-                                  </Button>
-                                </>
-                              ) : (
-                                <>
-                                  <Button
-                                    onClick={() => handleEditStart(alias)}
-                                    size="sm"
-                                    variant="outline"
-                                  >
-                                    编辑
-                                  </Button>
-                                  <Button
-                                    disabled={isSaving}
-                                    onClick={() => handleDelete(alias.id)}
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-                                  >
-                                    删除
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </TableWrapper>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>新增模型别名</CardTitle>
-            <CardDescription>
-              保存后立即写入 SQLite，并刷新运行时缓存。
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>新增模型别名</CardTitle>
+          <CardDescription>
+            保存后立即写入 SQLite，并刷新运行时缓存。
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto_auto] lg:items-start">
             <div className="space-y-2">
               <label
                 className="text-sm font-medium text-slate-700"
@@ -339,10 +199,7 @@ export function ModelAliasesPanel({
                 placeholder="claude-opus-4-6"
                 value={draft.sourceModel}
               />
-              <p className="text-xs text-slate-500">
-                这里填写客户端实际请求的模型名，例如 Claude Code 发出的
-                `claude-opus-4-6`。
-              </p>
+              <p className="text-xs text-slate-500">客户端实际请求的模型名。</p>
             </div>
             <div className="space-y-2">
               <label
@@ -363,10 +220,10 @@ export function ModelAliasesPanel({
                 value={draft.targetModel}
               />
               <p className="text-xs text-slate-500">
-                这里填写 Copilot 当前支持的真实模型 id，例如 `claude-opus-4.6`。
+                Copilot 当前支持的真实模型 id。
               </p>
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-600">
+            <label className="flex h-10 items-center gap-2 whitespace-nowrap text-sm text-slate-600 lg:mt-7">
               <input
                 checked={draft.enabled}
                 onChange={(event) =>
@@ -380,6 +237,7 @@ export function ModelAliasesPanel({
               立即启用
             </label>
             <Button
+              className="w-full lg:mt-7 lg:w-auto"
               disabled={
                 isSaving ||
                 draft.sourceModel.trim().length === 0 ||
@@ -389,9 +247,198 @@ export function ModelAliasesPanel({
             >
               保存别名
             </Button>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>模型别名</CardTitle>
+          <CardDescription>
+            这张表控制客户端请求模型如何映射到 Copilot 实际目标模型，例如
+            <code className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
+              claude-opus-4-6
+            </code>
+            {"->"}
+            <code className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
+              claude-opus-4.6
+            </code>
+            。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap gap-3">
+              <Badge>版本 {aliases.meta.version}</Badge>
+              <Badge>共 {aliases.meta.count} 条</Badge>
+              <Badge>启用 {aliases.meta.enabledCount} 条</Badge>
+              <Badge>最近加载 {formatTimestamp(aliases.meta.loadedAt)}</Badge>
+              <Badge>当前显示 {filteredAliases.length} 条</Badge>
+            </div>
+            <div className="ml-auto flex w-full flex-col gap-3 md:w-auto md:flex-row">
+              <Input
+                className="md:w-64"
+                onChange={(event) => setAliasQuery(event.target.value)}
+                placeholder="搜索请求模型"
+                value={aliasQuery}
+              />
+              <select
+                className="h-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+                onChange={(event) =>
+                  setAliasStatusFilter(
+                    event.target.value as ModelAliasStatusFilter,
+                  )
+                }
+                value={aliasStatusFilter}
+              >
+                <option value="all">全部状态</option>
+                <option value="enabled">启用</option>
+                <option value="disabled">停用</option>
+              </select>
+            </div>
+          </div>
+
+          <TableWrapper>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>请求模型</TableHead>
+                  <TableHead>Copilot 目标模型</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>更新时间</TableHead>
+                  <TableHead className="w-[180px]">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAliases.length === 0 ? (
+                  <TableRow>
+                    <TableCell className="py-6 text-slate-500" colSpan={5}>
+                      {aliases.data.length === 0
+                        ? "还没有模型别名。"
+                        : "没有匹配的模型别名。"}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredAliases.map((alias) => {
+                    const isEditing = editingId === alias.id
+
+                    return (
+                      <TableRow key={alias.id}>
+                        <TableCell>
+                          {isEditing ? (
+                            <Input
+                              onChange={(event) =>
+                                setEditingDraft((current) => ({
+                                  ...current,
+                                  sourceModel: event.target.value,
+                                }))
+                              }
+                              value={editingDraft.sourceModel}
+                            />
+                          ) : (
+                            <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-800">
+                              {alias.sourceModel}
+                            </code>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isEditing ? (
+                            <Input
+                              onChange={(event) =>
+                                setEditingDraft((current) => ({
+                                  ...current,
+                                  targetModel: event.target.value,
+                                }))
+                              }
+                              value={editingDraft.targetModel}
+                            />
+                          ) : (
+                            <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-800">
+                              {alias.targetModel}
+                            </code>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isEditing ? (
+                            <label className="flex items-center gap-2 whitespace-nowrap text-sm text-slate-600">
+                              <input
+                                checked={editingDraft.enabled}
+                                onChange={(event) =>
+                                  setEditingDraft((current) => ({
+                                    ...current,
+                                    enabled: event.target.checked,
+                                  }))
+                                }
+                                type="checkbox"
+                              />
+                              启用
+                            </label>
+                          ) : (
+                            <Badge
+                              className={cn(
+                                alias.enabled
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : "bg-slate-100 text-slate-500",
+                              )}
+                            >
+                              {alias.enabled ? "启用" : "停用"}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {formatTimestamp(alias.updatedAt)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            {isEditing ? (
+                              <>
+                                <Button
+                                  disabled={isSaving}
+                                  onClick={() => handleUpdate(alias.id)}
+                                  size="sm"
+                                >
+                                  保存
+                                </Button>
+                                <Button
+                                  disabled={isSaving}
+                                  onClick={() => setEditingId(null)}
+                                  size="sm"
+                                  variant="outline"
+                                >
+                                  取消
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button
+                                  onClick={() => handleEditStart(alias)}
+                                  size="sm"
+                                  variant="outline"
+                                >
+                                  编辑
+                                </Button>
+                                <Button
+                                  disabled={isSaving}
+                                  onClick={() => handleDelete(alias.id)}
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                >
+                                  删除
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </TableWrapper>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -408,7 +455,7 @@ export function ModelAliasesPanel({
             </div>
           ) : (
             <div className="grid gap-3 xl:grid-cols-3">
-              {supportedModels.map((model) => (
+              {uniqueSupportedModels.map((model) => (
                 <div
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
                   key={model.id}
