@@ -333,6 +333,98 @@ describe("request logs repository", () => {
     })
   })
 
+  test("bounds time-series with an exclusive upper timestamp", async () => {
+    await repository.insertBatch([
+      {
+        timestamp: "2026-04-07T23:59:00.000Z",
+        route: "/v1/chat/completions",
+        modelRaw: "claude-sonnet-4-5",
+        modelDisplay: "Claude Sonnet 4.5",
+        stream: false,
+        status: "success",
+        statusCode: 200,
+        latencyMs: 120,
+        inputTokens: 1,
+        outputTokens: 1,
+        totalTokens: 2,
+        pricingSource: null,
+        pricingModelId: null,
+        pricePromptUsdPerToken: null,
+        priceCompletionUsdPerToken: null,
+        priceRequestUsd: null,
+        estimatedCostUsd: null,
+        errorMessage: null,
+        accountType: "individual",
+      },
+      {
+        timestamp: "2026-04-08T12:00:00.000Z",
+        route: "/v1/chat/completions",
+        modelRaw: "claude-sonnet-4-5",
+        modelDisplay: "Claude Sonnet 4.5",
+        stream: false,
+        status: "success",
+        statusCode: 200,
+        latencyMs: 120,
+        inputTokens: 100,
+        outputTokens: 25,
+        totalTokens: 125,
+        pricingSource: null,
+        pricingModelId: null,
+        pricePromptUsdPerToken: null,
+        priceCompletionUsdPerToken: null,
+        priceRequestUsd: null,
+        estimatedCostUsd: null,
+        errorMessage: null,
+        accountType: "individual",
+      },
+      {
+        timestamp: "2026-04-09T00:00:00.000Z",
+        route: "/v1/chat/completions",
+        modelRaw: "claude-sonnet-4-5",
+        modelDisplay: "Claude Sonnet 4.5",
+        stream: false,
+        status: "success",
+        statusCode: 200,
+        latencyMs: 120,
+        inputTokens: 300,
+        outputTokens: 75,
+        totalTokens: 375,
+        pricingSource: null,
+        pricingModelId: null,
+        pricePromptUsdPerToken: null,
+        priceCompletionUsdPerToken: null,
+        priceRequestUsd: null,
+        estimatedCostUsd: null,
+        errorMessage: null,
+        accountType: "individual",
+      },
+    ])
+
+    const series = await repository.getTimeSeries({
+      bucketMinutes: 60,
+      limit: 24,
+      timeFrom: "2026-04-08T00:00:00.000Z",
+      timeTo: "2026-04-09T00:00:00.000Z",
+    })
+
+    expect(series).toHaveLength(24)
+    expect(series.at(0)?.bucket).toBe("2026-04-08T00:00:00Z")
+    expect(series.at(-1)?.bucket).toBe("2026-04-08T23:00:00Z")
+
+    const noonBucket = series.find(
+      (point) => point.bucket === "2026-04-08T12:00:00Z",
+    )
+    expect(noonBucket).toEqual({
+      bucket: "2026-04-08T12:00:00Z",
+      requests: 1,
+      inputTokens: 100,
+      outputTokens: 25,
+      tokens: 125,
+      errors: 0,
+    })
+    expect(series.reduce((sum, point) => sum + point.requests, 0)).toBe(1)
+  })
+
   test("backfills missing prices with a provided pricing resolver", async () => {
     await repository.insertBatch([
       {

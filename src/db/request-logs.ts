@@ -442,12 +442,19 @@ function fillMissingTimeSeriesBuckets(
   rows: Array<TimeSeriesDbRow>,
   bucketMinutes: number,
   limit: number,
+  timeTo?: string,
 ): Array<TimeSeriesPoint> {
-  if (rows.length === 0) {
+  const latestBucket =
+    timeTo == null
+      ? rows.length > 0
+        ? new Date(rows[0].bucket)
+        : null
+      : moveBucket(new Date(timeTo), bucketMinutes, -1)
+
+  if (latestBucket == null) {
     return []
   }
 
-  const latestBucket = new Date(rows[0].bucket)
   const rowMap = new Map(rows.map((row) => [row.bucket, row]))
   const buckets: Array<TimeSeriesPoint> = []
 
@@ -482,11 +489,21 @@ function readTimeSeries(
   bucketMinutes: number,
   limit: number,
   timeFrom?: string,
+  timeTo?: string,
 ): Array<TimeSeriesPoint> {
   const format = getBucketFormat(bucketMinutes)
-  const whereClause = timeFrom ? `WHERE timestamp >= ?2` : ""
+  const conditions: Array<string> = []
   const params: Array<string | number> = [limit]
-  if (timeFrom) params.push(timeFrom)
+  if (timeFrom) {
+    params.push(timeFrom)
+    conditions.push(`timestamp >= ?${params.length}`)
+  }
+  if (timeTo) {
+    params.push(timeTo)
+    conditions.push(`timestamp < ?${params.length}`)
+  }
+  const whereClause =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ""
 
   const rows = db
     .query<TimeSeriesDbRow, Array<string | number>>(
@@ -505,7 +522,7 @@ function readTimeSeries(
     )
     .all(...params)
 
-  return fillMissingTimeSeriesBuckets(rows, bucketMinutes, limit)
+  return fillMissingTimeSeriesBuckets(rows, bucketMinutes, limit, timeTo)
 }
 
 async function backfillMissingPricing(
@@ -629,6 +646,7 @@ export function createRequestLogRepository(db: Database) {
       bucketMinutes: number
       limit: number
       timeFrom?: string
+      timeTo?: string
     }): Promise<Array<TimeSeriesPoint>> {
       return Promise.resolve(
         readTimeSeries(
@@ -636,6 +654,7 @@ export function createRequestLogRepository(db: Database) {
           options.bucketMinutes,
           options.limit,
           options.timeFrom,
+          options.timeTo,
         ),
       )
     },

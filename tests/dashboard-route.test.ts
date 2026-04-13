@@ -61,7 +61,14 @@ function createUsageResponse(): CopilotUsageResponse {
   }
 }
 
-function createReadOnlyApp(): Hono {
+function createReadOnlyApp(
+  onGetTimeSeries?: (options: {
+    bucketMinutes: number
+    limit: number
+    timeFrom?: string
+    timeTo?: string
+  }) => void,
+): Hono {
   const app = new Hono()
   app.route(
     "/api/dashboard",
@@ -131,7 +138,8 @@ function createReadOnlyApp(): Hono {
           },
         ])
       },
-      getTimeSeries() {
+      getTimeSeries(options) {
+        onGetTimeSeries?.(options)
         return Promise.resolve([
           {
             bucket: "2026-04-08T00:00:00Z",
@@ -392,6 +400,32 @@ describe("dashboard route", () => {
     const usageResponse = await app.request("/api/dashboard/usage")
     const usage = (await usageResponse.json()) as CopilotUsageResponse
     expect(usage.copilot_plan).toBe("individual")
+  })
+
+  test("forwards time-series upper bound filters", async () => {
+    let captured:
+      | {
+          bucketMinutes: number
+          limit: number
+          timeFrom?: string
+          timeTo?: string
+        }
+      | undefined
+    const app = createReadOnlyApp((options) => {
+      captured = options
+    })
+
+    const response = await app.request(
+      "/api/dashboard/time-series?bucket=60&limit=24&timeFrom=2026-04-08T00%3A00%3A00.000Z&timeTo=2026-04-09T00%3A00%3A00.000Z",
+    )
+
+    expect(response.status).toBe(200)
+    expect(captured).toEqual({
+      bucketMinutes: 60,
+      limit: 24,
+      timeFrom: "2026-04-08T00:00:00.000Z",
+      timeTo: "2026-04-09T00:00:00.000Z",
+    })
   })
 
   test("supports creating, updating, and deleting model aliases", async () => {

@@ -42,6 +42,7 @@ interface DashboardRouteDeps {
     bucketMinutes: number
     limit: number
     timeFrom?: string
+    timeTo?: string
   }): Promise<Array<TimeSeriesPoint>>
   getAliasSnapshot(): {
     version: number
@@ -132,7 +133,13 @@ export function createDashboardRoute(deps: DashboardRouteDeps) {
     const bucketMinutes = clampInt(c.req.query("bucket"), 60, 1, 525600)
     const limit = clampInt(c.req.query("limit"), 168, 1, 1000)
     const timeFrom = c.req.query("timeFrom")
-    const data = await deps.getTimeSeries({ bucketMinutes, limit, timeFrom })
+    const timeTo = c.req.query("timeTo")
+    const data = await deps.getTimeSeries({
+      bucketMinutes,
+      limit,
+      timeFrom,
+      timeTo,
+    })
     return c.json({ data })
   })
 

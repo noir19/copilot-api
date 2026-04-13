@@ -241,9 +241,11 @@ export async function loadTimeSeries(
   bucketMinutes: number,
   limit: number,
   timeFrom?: string,
+  timeTo?: string,
 ): Promise<Array<TimeSeriesPoint>> {
   let url = `/api/dashboard/time-series?bucket=${bucketMinutes}&limit=${limit}`
   if (timeFrom) url += `&timeFrom=${encodeURIComponent(timeFrom)}`
+  if (timeTo) url += `&timeTo=${encodeURIComponent(timeTo)}`
   const res = await fetchJson<TimeSeriesResponse>(url)
   return res.data
 }
