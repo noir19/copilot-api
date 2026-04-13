@@ -124,7 +124,7 @@ describe("database schema migrations", () => {
     expect(alias?.target_model).toBe("claude-haiku-4-5")
   })
 
-  test("migrates model_aliases to request model and enabled composite primary key", () => {
+  test("migrates model_aliases to id primary key with one enabled alias per request model", () => {
     db.run(`
       CREATE TABLE model_aliases (
         id TEXT PRIMARY KEY,
@@ -155,6 +155,15 @@ describe("database schema migrations", () => {
       .sort((a, b) => a.pk - b.pk)
       .map((column) => column.name)
 
+    const indexes = db
+      .query<{ name: string; partial: number; unique: number }, []>(
+        "PRAGMA index_list(model_aliases)",
+      )
+      .all()
+    const enabledUniqueIndex = indexes.find(
+      (index) => index.name === "idx_model_aliases_one_enabled_source_model",
+    )
+
     db.run(
       `INSERT INTO model_aliases (
         id, source_model, target_model, enabled, created_at, updated_at
@@ -162,14 +171,23 @@ describe("database schema migrations", () => {
         'alias-2', 'haiku', 'claude-haiku-4-5-disabled', 0, '2026-04-08T12:01:00.000Z', '2026-04-08T12:01:00.000Z'
       )`,
     )
+    db.run(
+      `INSERT INTO model_aliases (
+        id, source_model, target_model, enabled, created_at, updated_at
+      ) VALUES (
+        'alias-3', 'haiku', 'claude-haiku-4-5-disabled-candidate', 0, '2026-04-08T12:02:00.000Z', '2026-04-08T12:02:00.000Z'
+      )`,
+    )
 
-    expect(primaryKeyColumns).toEqual(["source_model", "enabled"])
+    expect(primaryKeyColumns).toEqual(["id"])
+    expect(enabledUniqueIndex?.unique).toBe(1)
+    expect(enabledUniqueIndex?.partial).toBe(1)
     expect(() =>
       db.run(
         `INSERT INTO model_aliases (
             id, source_model, target_model, enabled, created_at, updated_at
           ) VALUES (
-            'alias-3', 'haiku', 'claude-haiku-4-5-duplicate', 1, '2026-04-08T12:02:00.000Z', '2026-04-08T12:02:00.000Z'
+            'alias-4', 'haiku', 'claude-haiku-4-5-duplicate', 1, '2026-04-08T12:03:00.000Z', '2026-04-08T12:03:00.000Z'
           )`,
       ),
     ).toThrow()

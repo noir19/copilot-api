@@ -13,7 +13,9 @@ export class ModelAliasConflictError extends Error {
 
   constructor(sourceModel: string, enabled: boolean) {
     super(
-      `模型别名已存在：请求模型 ${sourceModel} 已有${enabled ? "启用" : "停用"}状态的配置`,
+      enabled
+        ? `模型别名已存在：请求模型 ${sourceModel} 已有启用配置`
+        : `模型别名已存在：请求模型 ${sourceModel} 的配置冲突`,
     )
     this.name = "ModelAliasConflictError"
     this.enabled = enabled

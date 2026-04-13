@@ -46,7 +46,7 @@ describe("model aliases repository", () => {
     expect(records[0]?.enabled).toBe(true)
   })
 
-  test("allows one enabled and one disabled alias for the same request model", async () => {
+  test("allows one enabled and multiple disabled aliases for the same request model", async () => {
     const repository = createModelAliasRepository(db)
 
     await repository.create({
@@ -59,18 +59,24 @@ describe("model aliases repository", () => {
       targetModel: "claude-haiku-4-5-disabled",
       enabled: false,
     })
+    await repository.create({
+      sourceModel: "haiku",
+      targetModel: "claude-haiku-4-5-disabled-candidate",
+      enabled: false,
+    })
 
     const records = await repository.list()
 
-    expect(records).toHaveLength(2)
+    expect(records).toHaveLength(3)
     expect(records.map((record) => record.enabled).sort()).toEqual([
+      false,
       false,
       true,
     ])
     expect(records.every((record) => record.sourceModel === "haiku")).toBe(true)
   })
 
-  test("rejects duplicate aliases for the same request model and enabled state", async () => {
+  test("rejects duplicate enabled aliases for the same request model", async () => {
     const repository = createModelAliasRepository(db)
 
     await repository.create({
@@ -83,6 +89,28 @@ describe("model aliases repository", () => {
       repository.create({
         sourceModel: "HAIKU",
         targetModel: "claude-haiku-4-5-latest",
+        enabled: true,
+      }),
+    ).toThrow(ModelAliasConflictError)
+  })
+
+  test("rejects enabling a disabled alias when an enabled alias already exists", async () => {
+    const repository = createModelAliasRepository(db)
+    await repository.create({
+      sourceModel: "haiku",
+      targetModel: "claude-haiku-4-5",
+      enabled: true,
+    })
+    const disabled = await repository.create({
+      sourceModel: "haiku",
+      targetModel: "claude-haiku-4-5-candidate",
+      enabled: false,
+    })
+
+    expect(() =>
+      repository.update(disabled.id, {
+        sourceModel: "haiku",
+        targetModel: "claude-haiku-4-5-candidate",
         enabled: true,
       }),
     ).toThrow(ModelAliasConflictError)

@@ -41,12 +41,33 @@ function getModelAliasesPrimaryKeyColumns(db: Database): Array<string> {
     .map((column) => column.name)
 }
 
-function migrateModelAliasesCompositePrimaryKey(db: Database): void {
+function hasFullUniqueModelAliasSourceIndex(db: Database): boolean {
+  const indexes = db
+    .query<{ name: string; partial: number; unique: number }, []>(
+      "PRAGMA index_list(model_aliases)",
+    )
+    .all()
+
+  return indexes.some((index) => {
+    if (index.unique !== 1 || index.partial !== 0) {
+      return false
+    }
+
+    const columns = db
+      .query<{ name: string }, []>(`PRAGMA index_info(${index.name})`)
+      .all()
+      .map((column) => column.name)
+
+    return columns.length === 1 && columns[0] === "source_model"
+  })
+}
+
+function migrateModelAliasesPrimaryKey(db: Database): void {
   const primaryKeyColumns = getModelAliasesPrimaryKeyColumns(db)
   if (
-    primaryKeyColumns.length === 2 &&
-    primaryKeyColumns[0] === "source_model" &&
-    primaryKeyColumns[1] === "enabled"
+    primaryKeyColumns.length === 1 &&
+    primaryKeyColumns[0] === "id" &&
+    !hasFullUniqueModelAliasSourceIndex(db)
   ) {
     return
   }
@@ -55,13 +76,12 @@ function migrateModelAliasesCompositePrimaryKey(db: Database): void {
     db.run("ALTER TABLE model_aliases RENAME TO model_aliases_legacy")
     db.run(`
       CREATE TABLE model_aliases (
-        id TEXT NOT NULL UNIQUE,
+        id TEXT PRIMARY KEY,
         source_model TEXT NOT NULL,
         target_model TEXT NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        PRIMARY KEY (source_model, enabled)
+        updated_at TEXT NOT NULL
       );
     `)
     db.run(`
@@ -122,13 +142,12 @@ export function initDatabase(db: Database): void {
       ON request_logs(status);
 
     CREATE TABLE IF NOT EXISTS model_aliases (
-      id TEXT NOT NULL UNIQUE,
+      id TEXT PRIMARY KEY,
       source_model TEXT NOT NULL,
       target_model TEXT NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (source_model, enabled)
+      updated_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS dashboard_meta (
@@ -163,10 +182,15 @@ export function initDatabase(db: Database): void {
   )
   addColumnIfMissing(db, "request_logs", "price_request_usd", "REAL")
   addColumnIfMissing(db, "request_logs", "estimated_cost_usd", "REAL")
-  migrateModelAliasesCompositePrimaryKey(db)
+  migrateModelAliasesPrimaryKey(db)
+  normalizeStoredModelData(db)
   db.run(`
     CREATE INDEX IF NOT EXISTS idx_model_aliases_source_model
       ON model_aliases(source_model);
   `)
-  normalizeStoredModelData(db)
+  db.run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_model_aliases_one_enabled_source_model
+      ON model_aliases(source_model)
+      WHERE enabled = 1;
+  `)
 }

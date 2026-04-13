@@ -466,7 +466,7 @@ describe("dashboard route", () => {
     expect(list.data[0]?.id).toBe("alias-1")
   })
 
-  test("returns a clear conflict response for duplicate model alias status", async () => {
+  test("returns a clear conflict response for duplicate enabled model alias", async () => {
     const app = createReadOnlyApp()
 
     const response = await app.request("/api/dashboard/aliases", {
@@ -482,7 +482,7 @@ describe("dashboard route", () => {
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual({
       error: {
-        message: "模型别名已存在：请求模型 claude-sonnet 已有启用状态的配置",
+        message: "模型别名已存在：请求模型 claude-sonnet 已有启用配置",
         type: "model_alias_conflict",
       },
     })
