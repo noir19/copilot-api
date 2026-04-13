@@ -27,9 +27,11 @@ interface ModelLimits {
 }
 
 interface ModelSupports {
+  [key: string]: unknown
   tool_calls?: boolean
   parallel_tool_calls?: boolean
   dimensions?: boolean
+  reasoning_effort?: Array<string>
 }
 
 interface ModelCapabilities {

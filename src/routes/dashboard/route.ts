@@ -23,6 +23,7 @@ import type { CopilotUsageResponse } from "~/services/github/get-copilot-usage"
 interface DashboardRouteDeps {
   createAlias(input: CreateModelAliasInput): Promise<ModelAliasRecord>
   getSupportedModels(): Promise<Array<Model>>
+  refreshSupportedModels(): Promise<Array<Model>>
   getUsage(): Promise<CopilotUsageResponse>
   getOverview(): Promise<RequestOverview>
   getModelBreakdown(): Promise<Array<ModelBreakdownRow>>
@@ -60,6 +61,21 @@ interface DashboardRouteDeps {
 export function createDashboardRoute(deps: DashboardRouteDeps) {
   const route = new Hono()
 
+  function toSupportedModelResponse(model: Model) {
+    return {
+      id: model.id,
+      name: model.name,
+      preview: model.preview,
+      vendor: model.vendor,
+      modelPickerEnabled: model.model_picker_enabled,
+      capabilities: {
+        family: model.capabilities.family,
+        supports: model.capabilities.supports,
+        type: model.capabilities.type,
+      },
+    }
+  }
+
   function clampInt(
     raw: string | undefined,
     fallback: number,
@@ -84,12 +100,14 @@ export function createDashboardRoute(deps: DashboardRouteDeps) {
   route.get("/supported-models", async (c) => {
     const data = await deps.getSupportedModels()
     return c.json({
-      data: data.map((model) => ({
-        id: model.id,
-        name: model.name,
-        preview: model.preview,
-        vendor: model.vendor,
-      })),
+      data: data.map(toSupportedModelResponse),
+    })
+  })
+
+  route.post("/supported-models/refresh", async (c) => {
+    const data = await deps.refreshSupportedModels()
+    return c.json({
+      data: data.map(toSupportedModelResponse),
     })
   })
 

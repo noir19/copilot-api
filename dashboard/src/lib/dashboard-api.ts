@@ -100,11 +100,19 @@ export interface DashboardData {
 }
 
 export interface SupportedModel {
+  capabilities: {
+    family: string
+    supports: Record<string, unknown>
+    type: string
+  }
   id: string
+  modelPickerEnabled: boolean
   name: string
   preview: boolean
   vendor: string
 }
+
+export type ModelReasoningEffort = "none" | "low" | "medium" | "high" | "xhigh"
 
 export interface TimeSeriesPoint {
   bucket: string
@@ -288,4 +296,13 @@ export function saveSettings(
     body: JSON.stringify({ entries }),
     method: "POST",
   })
+}
+
+export function refreshSupportedModels(): Promise<SupportedModelsResponse> {
+  return fetchJson<SupportedModelsResponse>(
+    "/api/dashboard/supported-models/refresh",
+    {
+      method: "POST",
+    },
+  )
 }

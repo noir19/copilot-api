@@ -108,6 +108,27 @@ function createReadOnlyApp(
           },
         ])
       },
+      refreshSupportedModels() {
+        return Promise.resolve([
+          {
+            id: "gpt-5.4",
+            name: "GPT-5.4",
+            object: "model",
+            model_picker_enabled: true,
+            preview: true,
+            vendor: "openai",
+            version: "1",
+            capabilities: {
+              family: "gpt-5",
+              limits: { max_output_tokens: 64000 },
+              object: "capabilities",
+              supports: { tool_calls: true },
+              tokenizer: "o200k_base",
+              type: "chat",
+            },
+          },
+        ])
+      },
       getUsage() {
         return Promise.resolve(createUsageResponse())
       },
@@ -267,6 +288,9 @@ function createMutableMappingsApp(): Hono {
       getSupportedModels() {
         return Promise.resolve([])
       },
+      refreshSupportedModels() {
+        return Promise.resolve([])
+      },
       getUsage() {
         return Promise.resolve(createUsageResponse())
       },
@@ -385,9 +409,36 @@ describe("dashboard route", () => {
     )
     const supportedModels =
       (await supportedModelsResponse.json()) as DashboardResponse<
-        Array<unknown>
+        Array<{
+          capabilities: {
+            family: string
+            supports: Record<string, unknown>
+            type: string
+          }
+          modelPickerEnabled: boolean
+        }>
       >
     expect(supportedModels.data).toHaveLength(1)
+    expect(supportedModels.data[0]).toMatchObject({
+      capabilities: {
+        family: "claude",
+        supports: {},
+        type: "chat",
+      },
+      modelPickerEnabled: true,
+    })
+
+    const refreshModelsResponse = await app.request(
+      "/api/dashboard/supported-models/refresh",
+      { method: "POST" },
+    )
+    const refreshModels =
+      (await refreshModelsResponse.json()) as DashboardResponse<
+        Array<{ id: string; modelPickerEnabled: boolean }>
+      >
+    expect(refreshModels.data).toMatchObject([
+      { id: "gpt-5.4", modelPickerEnabled: true },
+    ])
 
     const timeSeriesResponse = await app.request(
       "/api/dashboard/time-series?bucket=1440&limit=7",

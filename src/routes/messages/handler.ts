@@ -2,7 +2,9 @@ import consola from "consola"
 import type { Context } from "hono"
 import { streamSSE } from "hono/streaming"
 
+import { getDashboardMetaRepository } from "~/db/runtime"
 import { awaitApproval } from "~/lib/approval"
+import { applyModelReasoningEffort } from "~/lib/model-reasoning-settings"
 import { checkRateLimit } from "~/lib/rate-limit"
 import { enqueueRequestLog } from "~/lib/request-log"
 import { state } from "~/lib/state"
@@ -30,7 +32,10 @@ export async function handleCompletion(c: Context) {
   const anthropicPayload = await c.req.json<AnthropicMessagesPayload>()
   consola.debug("Anthropic request payload:", JSON.stringify(anthropicPayload))
 
-  const openAIPayload = translateToOpenAI(anthropicPayload)
+  let openAIPayload = translateToOpenAI(anthropicPayload)
+  openAIPayload = applyModelReasoningEffort(openAIPayload, (key) =>
+    getDashboardMetaRepository().get(key),
+  )
   consola.debug(
     "Translated OpenAI request payload:",
     JSON.stringify(openAIPayload),

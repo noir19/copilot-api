@@ -13,9 +13,10 @@ export const sleep = (ms: number) =>
 export const isNullish = (value: unknown): value is null | undefined =>
   value === null || value === undefined
 
-export async function cacheModels(): Promise<void> {
+export async function cacheModels() {
   const models = await getModels()
   state.models = models
+  return models
 }
 
 export const cacheVSCodeVersion = async () => {

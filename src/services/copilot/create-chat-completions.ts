@@ -127,6 +127,7 @@ export interface ChatCompletionsPayload {
   stop?: string | Array<string> | null
   n?: number | null
   stream?: boolean | null
+  reasoning_effort?: "none" | "low" | "medium" | "high" | "xhigh" | null
 
   frequency_penalty?: number | null
   presence_penalty?: number | null

@@ -58,6 +58,10 @@ server.route(
 
       return state.models?.data ?? []
     },
+    refreshSupportedModels: async () => {
+      const models = await cacheModels()
+      return models.data
+    },
     getUsage: getCopilotUsage,
     getOverview: async () => {
       return getRequestLogRepository().getOverview()

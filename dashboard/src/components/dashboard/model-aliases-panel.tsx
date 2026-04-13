@@ -1,5 +1,12 @@
-import { Check, Copy } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { Check, Copy, RefreshCcw } from "lucide-react"
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react"
 
 import {
   type AliasDraft,
@@ -9,6 +16,8 @@ import {
   EMPTY_ALIAS_DRAFT,
   loadSettings,
   type ModelAliasRecord,
+  type ModelReasoningEffort,
+  refreshSupportedModels,
   type SupportedModel,
   saveSettings,
   updateAlias,
@@ -39,6 +48,38 @@ import {
   TableWrapper,
 } from "../ui/table"
 
+const MODEL_REASONING_EFFORT_PREFIX = "model_reasoning_effort:"
+const REASONING_OPTIONS: Array<{
+  label: string
+  value: ModelReasoningEffort
+}> = [
+  { label: "不思考", value: "none" },
+  { label: "低", value: "low" },
+  { label: "中", value: "medium" },
+  { label: "高", value: "high" },
+  { label: "极高", value: "xhigh" },
+]
+
+function modelReasoningEffortKey(modelId: string) {
+  return `${MODEL_REASONING_EFFORT_PREFIX}${modelId}`
+}
+
+function isModelReasoningEffort(value: unknown): value is ModelReasoningEffort {
+  return REASONING_OPTIONS.some((option) => option.value === value)
+}
+
+function getReasoningOptions(model: SupportedModel) {
+  const rawValues = model.capabilities.supports.reasoning_effort
+  if (!Array.isArray(rawValues)) {
+    return []
+  }
+
+  const supportedValues = rawValues.filter(isModelReasoningEffort)
+  return REASONING_OPTIONS.filter((option) =>
+    supportedValues.includes(option.value),
+  )
+}
+
 export function ModelAliasesPanel({
   aliases,
   onChanged,
@@ -54,8 +95,12 @@ export function ModelAliasesPanel({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isRefreshingModels, setIsRefreshingModels] = useState(false)
   const [dashToDotEnabled, setDashToDotEnabled] = useState(true)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [modelReasoningEfforts, setModelReasoningEfforts] = useState<
+    Record<string, "" | ModelReasoningEffort>
+  >({})
   const [aliasQuery, setAliasQuery] = useState("")
   const [aliasStatusFilter, setAliasStatusFilter] =
     useState<ModelAliasStatusFilter>("all")
@@ -87,6 +132,16 @@ export function ModelAliasesPanel({
     loadSettings()
       .then((data) => {
         setDashToDotEnabled(data.settings.dash_to_dot_enabled !== "false")
+        const nextReasoningEfforts: Record<string, "" | ModelReasoningEffort> =
+          {}
+        for (const [key, value] of Object.entries(data.settings)) {
+          if (!key.startsWith(MODEL_REASONING_EFFORT_PREFIX)) continue
+          if (!isModelReasoningEffort(value)) continue
+          nextReasoningEfforts[
+            key.slice(MODEL_REASONING_EFFORT_PREFIX.length)
+          ] = value
+        }
+        setModelReasoningEfforts(nextReasoningEfforts)
       })
       .catch(() => {})
   }, [])
@@ -99,6 +154,48 @@ export function ModelAliasesPanel({
       setDashToDotEnabled(!enabled)
     }
   }, [])
+
+  async function handleRefreshModels() {
+    setError(null)
+    setIsRefreshingModels(true)
+
+    try {
+      await refreshSupportedModels()
+      await onChanged()
+    } catch (refreshError) {
+      setError(
+        refreshError instanceof Error
+          ? refreshError.message
+          : "模型清单刷新失败",
+      )
+    } finally {
+      setIsRefreshingModels(false)
+    }
+  }
+
+  async function handleReasoningEffortChange(
+    modelId: string,
+    value: "" | ModelReasoningEffort,
+  ) {
+    const previous = modelReasoningEfforts[modelId] ?? ""
+    setError(null)
+    setModelReasoningEfforts((current) => ({
+      ...current,
+      [modelId]: value,
+    }))
+
+    try {
+      await saveSettings({ [modelReasoningEffortKey(modelId)]: value })
+    } catch (saveError) {
+      setModelReasoningEfforts((current) => ({
+        ...current,
+        [modelId]: previous,
+      }))
+      setError(
+        saveError instanceof Error ? saveError.message : "思考深度保存失败",
+      )
+    }
+  }
 
   async function withRefresh(action: () => Promise<void>) {
     setError(null)
@@ -442,11 +539,30 @@ export function ModelAliasesPanel({
 
       <Card>
         <CardHeader>
-          <CardTitle>Copilot 目标模型</CardTitle>
-          <CardDescription>
-            这里列出当前从 Copilot
-            拉到的可用目标模型。点击“填入目标模型”可直接写入目标模型输入框。
-          </CardDescription>
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <CardTitle>Copilot 目标模型</CardTitle>
+              <CardDescription>
+                这里列出当前从 Copilot
+                拉到的可用目标模型。点击“填入目标模型”可直接写入目标模型输入框。
+              </CardDescription>
+            </div>
+            <Button
+              className="w-full md:w-auto"
+              disabled={isRefreshingModels}
+              onClick={() => void handleRefreshModels()}
+              size="sm"
+              variant="outline"
+            >
+              <RefreshCcw
+                className={cn(
+                  "mr-1.5 h-3.5 w-3.5",
+                  isRefreshingModels && "animate-spin",
+                )}
+              />
+              刷新模型清单
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {supportedModels.length === 0 ? (
@@ -456,73 +572,135 @@ export function ModelAliasesPanel({
           ) : (
             <div className="grid gap-3 xl:grid-cols-3">
               {uniqueSupportedModels.map((model) => (
-                <div
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                <ModelCard
+                  copiedId={copiedId}
+                  copyModelId={copyModelId}
                   key={model.id}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1.5">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                          Display Name
-                        </p>
-                        <p className="truncate text-sm font-semibold text-slate-950">
-                          {model.name}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                          Model ID
-                        </p>
-                        <div className="flex items-center gap-1.5">
-                          <code className="break-all rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
-                            {model.id}
-                          </code>
-                          <button
-                            className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                            onClick={() => copyModelId(model.id)}
-                            title="复制 Model ID"
-                            type="button"
-                          >
-                            {copiedId === model.id ? (
-                              <Check className="h-3.5 w-3.5 text-emerald-500" />
-                            ) : (
-                              <Copy className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      className="shrink-0"
-                      onClick={() =>
-                        setDraft((current) => ({
-                          ...current,
-                          targetModel: model.id,
-                        }))
-                      }
-                      size="sm"
-                      variant="outline"
-                    >
-                      填入
-                    </Button>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Badge className="bg-slate-100 text-slate-600">
-                      {model.vendor}
-                    </Badge>
-                    {model.preview ? (
-                      <Badge className="bg-amber-50 text-amber-700">
-                        Preview
-                      </Badge>
-                    ) : null}
-                  </div>
-                </div>
+                  model={model}
+                  modelReasoningEffort={modelReasoningEfforts[model.id] ?? ""}
+                  onReasoningEffortChange={handleReasoningEffortChange}
+                  setDraft={setDraft}
+                />
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+function ModelCard({
+  copiedId,
+  copyModelId,
+  model,
+  modelReasoningEffort,
+  onReasoningEffortChange,
+  setDraft,
+}: {
+  copiedId: string | null
+  copyModelId: (id: string) => void
+  model: SupportedModel
+  modelReasoningEffort: "" | ModelReasoningEffort
+  onReasoningEffortChange: (
+    modelId: string,
+    value: "" | ModelReasoningEffort,
+  ) => Promise<void>
+  setDraft: Dispatch<SetStateAction<AliasDraft>>
+}) {
+  const reasoningOptions = getReasoningOptions(model)
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1.5">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400">
+              Display Name
+            </p>
+            <p className="truncate text-sm font-semibold text-slate-950">
+              {model.name}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400">
+              Model ID
+            </p>
+            <div className="flex items-center gap-1.5">
+              <code className="break-all rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                {model.id}
+              </code>
+              <button
+                className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                onClick={() => copyModelId(model.id)}
+                title="复制 Model ID"
+                type="button"
+              >
+                {copiedId === model.id ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-500" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+        <Button
+          className="shrink-0"
+          onClick={() =>
+            setDraft((current) => ({
+              ...current,
+              targetModel: model.id,
+            }))
+          }
+          size="sm"
+          variant="outline"
+        >
+          填入
+        </Button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Badge className="bg-slate-100 text-slate-600">{model.vendor}</Badge>
+        <Badge className="bg-slate-100 text-slate-600">
+          {model.capabilities.family}
+        </Badge>
+        {model.preview ? (
+          <Badge className="bg-amber-50 text-amber-700">Preview</Badge>
+        ) : null}
+        {model.modelPickerEnabled ? (
+          <Badge className="bg-emerald-50 text-emerald-700">允许</Badge>
+        ) : (
+          <Badge className="bg-slate-100 text-slate-500">不可选</Badge>
+        )}
+      </div>
+      {model.modelPickerEnabled && reasoningOptions.length > 0 ? (
+        <div className="mt-4 space-y-2">
+          <label
+            className="text-xs font-medium text-slate-600"
+            htmlFor={`reasoning-effort-${model.id}`}
+          >
+            思考深度
+          </label>
+          <select
+            className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+            id={`reasoning-effort-${model.id}`}
+            onChange={(event) =>
+              void onReasoningEffortChange(
+                model.id,
+                event.target.value as "" | ModelReasoningEffort,
+              )
+            }
+            value={modelReasoningEffort}
+          >
+            <option value="">默认</option>
+            {reasoningOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
     </div>
   )
 }

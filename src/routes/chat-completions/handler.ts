@@ -2,7 +2,9 @@ import consola from "consola"
 import type { Context } from "hono"
 import { type SSEMessage, streamSSE } from "hono/streaming"
 
+import { getDashboardMetaRepository } from "~/db/runtime"
 import { awaitApproval } from "~/lib/approval"
+import { applyModelReasoningEffort } from "~/lib/model-reasoning-settings"
 import { checkRateLimit } from "~/lib/rate-limit"
 import { enqueueRequestLog } from "~/lib/request-log"
 import { state } from "~/lib/state"
@@ -61,6 +63,10 @@ export async function handleCompletion(c: Context) {
       max_tokens: undefined,
     }
   }
+
+  payload = applyModelReasoningEffort(payload, (key) =>
+    getDashboardMetaRepository().get(key),
+  )
 
   try {
     const response = await createChatCompletions(payload)
