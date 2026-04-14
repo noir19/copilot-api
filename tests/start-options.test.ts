@@ -10,6 +10,6 @@ describe("start server options", () => {
 
     expect(options.port).toBe(4141)
     expect(options.fetch).toBe(fetch)
-    expect(options.bun?.idleTimeout).toBe(300)
+    expect(options.bun?.idleTimeout).toBe(255)
   })
 })

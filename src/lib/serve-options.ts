@@ -1,6 +1,6 @@
 import type { ServerHandler } from "srvx"
 
-export const BUN_IDLE_TIMEOUT_SECONDS = 300
+export const BUN_IDLE_TIMEOUT_SECONDS = 255
 
 export function createServeOptions(fetch: ServerHandler, port: number) {
   return {
