@@ -401,6 +401,7 @@ export function ModelAliasesPanel({
                 <TableRow>
                   <TableHead>请求模型</TableHead>
                   <TableHead>Copilot 目标模型</TableHead>
+                  <TableHead>思考深度</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead>更新时间</TableHead>
                   <TableHead className="w-[180px]">操作</TableHead>
@@ -409,7 +410,7 @@ export function ModelAliasesPanel({
               <TableBody>
                 {filteredAliases.length === 0 ? (
                   <TableRow>
-                    <TableCell className="py-6 text-slate-500" colSpan={5}>
+                    <TableCell className="py-6 text-slate-500" colSpan={6}>
                       {aliases.data.length === 0
                         ? "还没有模型别名。"
                         : "没有匹配的模型别名。"}
@@ -418,6 +419,14 @@ export function ModelAliasesPanel({
                 ) : (
                   filteredAliases.map((alias) => {
                     const isEditing = editingId === alias.id
+                    const targetModel = uniqueSupportedModels.find(
+                      (model) => model.id === alias.targetModel,
+                    )
+                    const reasoningOptions = targetModel
+                      ? getReasoningOptions(targetModel)
+                      : []
+                    const modelReasoningEffort =
+                      modelReasoningEfforts[alias.targetModel] ?? ""
 
                     return (
                       <TableRow key={alias.id}>
@@ -453,6 +462,42 @@ export function ModelAliasesPanel({
                             <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-800">
                               {alias.targetModel}
                             </code>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {targetModel == null ? (
+                            <span className="text-xs text-slate-400">
+                              未命中当前模型清单
+                            </span>
+                          ) : !targetModel.modelPickerEnabled ? (
+                            <Badge className="bg-slate-100 text-slate-500">
+                              不可选
+                            </Badge>
+                          ) : reasoningOptions.length === 0 ? (
+                            <span className="text-xs text-slate-400">
+                              不支持
+                            </span>
+                          ) : (
+                            <select
+                              className="h-9 min-w-28 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+                              onChange={(event) =>
+                                void handleReasoningEffortChange(
+                                  alias.targetModel,
+                                  event.target.value as
+                                    | ""
+                                    | ModelReasoningEffort,
+                                )
+                              }
+                              title="多个映射指向同一目标模型时会共享这个思考深度"
+                              value={modelReasoningEffort}
+                            >
+                              <option value="">默认</option>
+                              {reasoningOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
                           )}
                         </TableCell>
                         <TableCell>

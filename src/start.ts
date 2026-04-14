@@ -9,6 +9,7 @@ import invariant from "tiny-invariant"
 import { initializeDashboardRuntime } from "./db/runtime"
 import { ensurePaths } from "./lib/paths"
 import { initProxyFromEnv } from "./lib/proxy"
+import { createServeOptions } from "./lib/serve-options"
 import { generateEnvScript } from "./lib/shell"
 import { state } from "./lib/state"
 import { setupCopilotToken, setupGitHubToken } from "./lib/token"
@@ -126,10 +127,7 @@ export async function runServer(options: RunServerOptions): Promise<void> {
     `🌐 Usage Viewer: https://ericc-ch.github.io/copilot-api?endpoint=${serverUrl}/usage`,
   )
 
-  serve({
-    fetch: server.fetch as ServerHandler,
-    port: options.port,
-  })
+  serve(createServeOptions(server.fetch as ServerHandler, options.port))
 }
 
 export const start = defineCommand({
