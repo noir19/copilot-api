@@ -2,13 +2,13 @@ FROM oven/bun:1.3.12-alpine AS builder
 WORKDIR /app
 
 COPY ./package.json ./bun.lock ./
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --ignore-scripts --network-concurrency=8
 
 COPY . .
 RUN bun run build
 
 FROM builder AS production-deps
-RUN rm -rf node_modules && bun install --frozen-lockfile --production --ignore-scripts --no-cache
+RUN rm -rf node_modules && bun install --frozen-lockfile --production --ignore-scripts --no-cache --network-concurrency=8
 
 FROM oven/bun:1.3.12-alpine AS runner
 WORKDIR /app

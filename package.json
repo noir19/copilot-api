@@ -32,13 +32,10 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "prepack": "bun run build",
-    "prepare": "simple-git-hooks",
+    "prepare": "lefthook install",
     "release": "bumpp && bun publish --access public",
     "start": "NODE_ENV=production bun run ./src/main.ts",
     "typecheck": "tsc && tsc -p dashboard/tsconfig.json"
-  },
-  "simple-git-hooks": {
-    "pre-commit": "bun run lint:fix"
   },
   "dependencies": {
     "citty": "^0.1.6",
@@ -70,7 +67,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "bumpp": "^10.2.3",
     "knip": "^5.64.1",
-    "simple-git-hooks": "^2.13.1",
+    "lefthook": "^2.1.5",
     "tailwindcss": "^4.2.2",
     "tsdown": "^0.15.6",
     "typescript": "^5.9.3",
