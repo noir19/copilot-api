@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Bar,
   BarChart,
@@ -20,7 +21,6 @@ import {
   CardHeader,
   CardTitle,
 } from "../ui/card"
-import { Input } from "../ui/input"
 
 type TrendMetric =
   | "requests"
@@ -193,6 +193,152 @@ function getNaturalPeriodHint(granularity: Granularity): string {
     case "year":
       return "自然年"
   }
+}
+
+function formatPeriodLabel(
+  granularity: Granularity,
+  values: NaturalPeriodValues,
+): string {
+  switch (granularity) {
+    case "day": {
+      const d = parseDateInput(values.day)
+      return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+    }
+    case "week": {
+      const { week, year } = getIsoWeek(parseWeekInput(values.week))
+      return `${year}年 第${week}周`
+    }
+    case "month": {
+      const [y, m] = values.month.split("-").map(Number)
+      return `${y}年${m}月`
+    }
+    case "year":
+      return `${values.year}年`
+  }
+}
+
+function stepPeriod(
+  granularity: Granularity,
+  values: NaturalPeriodValues,
+  direction: -1 | 1,
+): string {
+  switch (granularity) {
+    case "day": {
+      const d = parseDateInput(values.day)
+      d.setDate(d.getDate() + direction)
+      return toDateInputValue(d)
+    }
+    case "week": {
+      const d = parseWeekInput(values.week)
+      d.setDate(d.getDate() + direction * 7)
+      return toWeekInputValue(d)
+    }
+    case "month": {
+      const [y, m] = values.month.split("-").map(Number)
+      const d = new Date(y, m - 1 + direction, 1)
+      return toMonthInputValue(d)
+    }
+    case "year":
+      return String(Number(values.year) + direction)
+  }
+}
+
+const PERIOD_INPUT_TYPE: Record<Granularity, string> = {
+  day: "date",
+  week: "week",
+  month: "month",
+  year: "number",
+}
+
+function PeriodNavigator({
+  granularity,
+  naturalPeriod,
+  onChangeValue,
+  hint,
+}: {
+  granularity: Granularity
+  naturalPeriod: NaturalPeriodValues
+  onChangeValue: (value: string) => void
+  hint: string
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [editingYear, setEditingYear] = useState(false)
+
+  const isYear = granularity === "year"
+
+  return (
+    <div className="flex items-center gap-1 text-xs text-slate-500">
+      <button
+        className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+        onClick={() =>
+          onChangeValue(stepPeriod(granularity, naturalPeriod, -1))
+        }
+        type="button"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      {isYear ? (
+        editingYear ? (
+          <input
+            ref={(el) => el?.focus()}
+            className="w-[4.5em] rounded border border-slate-300 bg-white px-1 py-0.5 text-center text-sm font-medium text-slate-700 outline-none focus:border-amber-500"
+            defaultValue={naturalPeriod.year}
+            min="2000"
+            onBlur={(e) => {
+              setEditingYear(false)
+              if (e.target.value) onChangeValue(e.target.value)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                ;(e.target as HTMLInputElement).blur()
+              }
+            }}
+            type="number"
+          />
+        ) : (
+          <button
+            className="min-w-[5em] cursor-pointer select-none text-center text-sm font-medium text-slate-700 hover:text-slate-900"
+            onClick={() => setEditingYear(true)}
+            type="button"
+          >
+            {formatPeriodLabel(granularity, naturalPeriod)}
+          </button>
+        )
+      ) : (
+        <button
+          className="relative min-w-[5em] cursor-pointer select-none text-center text-sm font-medium text-slate-700 hover:text-slate-900"
+          onClick={() => {
+            const el = inputRef.current
+            if (el) {
+              el.showPicker?.()
+              el.focus()
+            }
+          }}
+          type="button"
+        >
+          {formatPeriodLabel(granularity, naturalPeriod)}
+          <input
+            ref={inputRef}
+            className="pointer-events-none absolute inset-0 opacity-0"
+            onChange={(e) => {
+              if (e.target.value) onChangeValue(e.target.value)
+            }}
+            tabIndex={-1}
+            type={PERIOD_INPUT_TYPE[granularity]}
+            value={naturalPeriod[granularity]}
+          />
+        </button>
+      )}
+      <button
+        className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+        onClick={() => onChangeValue(stepPeriod(granularity, naturalPeriod, 1))}
+        type="button"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+      <span className="ml-1">{hint}</span>
+    </div>
+  )
 }
 
 export function RequestTrendCard({
@@ -408,50 +554,12 @@ export function RequestTrendCard({
               ))}
             </div>
             {windowMode === "calendar" ? (
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                {granularity === "day" ? (
-                  <Input
-                    className="h-9 w-[150px]"
-                    onChange={(event) =>
-                      updateNaturalPeriod(event.target.value)
-                    }
-                    type="date"
-                    value={naturalPeriod.day}
-                  />
-                ) : null}
-                {granularity === "week" ? (
-                  <Input
-                    className="h-9 w-[150px]"
-                    onChange={(event) =>
-                      updateNaturalPeriod(event.target.value)
-                    }
-                    type="week"
-                    value={naturalPeriod.week}
-                  />
-                ) : null}
-                {granularity === "month" ? (
-                  <Input
-                    className="h-9 w-[150px]"
-                    onChange={(event) =>
-                      updateNaturalPeriod(event.target.value)
-                    }
-                    type="month"
-                    value={naturalPeriod.month}
-                  />
-                ) : null}
-                {granularity === "year" ? (
-                  <Input
-                    className="h-9 w-[110px]"
-                    min="2000"
-                    onChange={(event) =>
-                      updateNaturalPeriod(event.target.value)
-                    }
-                    type="number"
-                    value={naturalPeriod.year}
-                  />
-                ) : null}
-                <span>{naturalHint}</span>
-              </div>
+              <PeriodNavigator
+                granularity={granularity}
+                naturalPeriod={naturalPeriod}
+                onChangeValue={updateNaturalPeriod}
+                hint={naturalHint}
+              />
             ) : null}
             <div className="ml-auto flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
               {(

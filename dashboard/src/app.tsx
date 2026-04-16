@@ -83,12 +83,12 @@ function DashboardHeader({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
             {TIME_RANGE_OPTIONS.map((opt) => (
               <button
                 className={cn(
-                  "rounded-md px-3 py-1 text-xs font-medium transition-all",
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
                   timeRange === opt.value
                     ? "bg-white text-slate-900 shadow-sm"
                     : "text-slate-500 hover:text-slate-700",
