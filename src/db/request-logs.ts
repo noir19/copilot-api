@@ -43,6 +43,7 @@ export interface TimeSeriesPoint {
   outputTokens: number
   tokens: number
   errors: number
+  estimatedCostUsd: number
 }
 
 export interface RequestPricingSnapshot {
@@ -229,9 +230,13 @@ function insertRequestLogs(
   transaction(records)
 }
 
-function readOverview(db: Database): RequestOverview {
+function readOverview(
+  db: Database,
+  filter?: { timeFrom?: string; timeTo?: string },
+): RequestOverview {
+  const { clause, params } = buildWhereClause(filter ?? {})
   const row = db
-    .query<OverviewRow, []>(
+    .query<OverviewRow, Array<string>>(
       `SELECT
          COUNT(*) AS total_requests,
          SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS success_count,
@@ -241,9 +246,10 @@ function readOverview(db: Database): RequestOverview {
          COALESCE(SUM(total_tokens), 0) AS total_tokens,
          AVG(latency_ms) AS average_latency_ms,
          COALESCE(SUM(estimated_cost_usd), 0) AS estimated_cost_usd
-       FROM request_logs`,
+       FROM request_logs
+       ${clause}`,
     )
-    .get()
+    .get(...params)
 
   const totalRequests = row?.total_requests ?? 0
   const successCount = row?.success_count ?? 0
@@ -261,9 +267,13 @@ function readOverview(db: Database): RequestOverview {
   }
 }
 
-function readModelBreakdown(db: Database): Array<ModelBreakdownRow> {
+function readModelBreakdown(
+  db: Database,
+  filter?: { timeFrom?: string; timeTo?: string },
+): Array<ModelBreakdownRow> {
+  const { clause, params } = buildWhereClause(filter ?? {})
   const rows = db
-    .query<ModelBreakdownDbRow, []>(
+    .query<ModelBreakdownDbRow, Array<string>>(
       `SELECT
          model_raw,
          model_display,
@@ -278,10 +288,11 @@ function readModelBreakdown(db: Database): Array<ModelBreakdownRow> {
          MAX(pricing_model_id) AS pricing_model_id,
          MAX(timestamp) AS last_requested_at
        FROM request_logs
+       ${clause}
        GROUP BY model_display, model_raw
        ORDER BY request_count DESC, last_requested_at DESC`,
     )
-    .all()
+    .all(...params)
 
   return rows.map((row) => ({
     modelRaw: row.model_raw,
@@ -395,6 +406,7 @@ interface TimeSeriesDbRow {
   output_tokens: number
   tokens: number
   errors: number
+  estimated_cost_usd: number
 }
 
 function bucketKind(bucketMinutes: number): "hour" | "day" | "month" {
@@ -470,6 +482,7 @@ function fillMissingTimeSeriesBuckets(
       outputTokens: row?.output_tokens ?? 0,
       tokens: row?.tokens ?? 0,
       errors: row?.errors ?? 0,
+      estimatedCostUsd: row?.estimated_cost_usd ?? 0,
     })
   }
 
@@ -513,7 +526,8 @@ function readTimeSeries(
          COALESCE(SUM(input_tokens), 0) AS input_tokens,
          COALESCE(SUM(output_tokens), 0) AS output_tokens,
          COALESCE(SUM(total_tokens), 0) AS tokens,
-         SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS errors
+         SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS errors,
+         COALESCE(SUM(estimated_cost_usd), 0) AS estimated_cost_usd
        FROM request_logs
        ${whereClause}
        GROUP BY bucket
@@ -608,12 +622,18 @@ export function createRequestLogRepository(db: Database) {
       return Promise.resolve()
     },
 
-    getOverview(): Promise<RequestOverview> {
-      return Promise.resolve(readOverview(db))
+    getOverview(filter?: {
+      timeFrom?: string
+      timeTo?: string
+    }): Promise<RequestOverview> {
+      return Promise.resolve(readOverview(db, filter))
     },
 
-    getModelBreakdown(): Promise<Array<ModelBreakdownRow>> {
-      return Promise.resolve(readModelBreakdown(db))
+    getModelBreakdown(filter?: {
+      timeFrom?: string
+      timeTo?: string
+    }): Promise<Array<ModelBreakdownRow>> {
+      return Promise.resolve(readModelBreakdown(db, filter))
     },
 
     getRecentRequests(options: {

@@ -63,11 +63,11 @@ server.route(
       return models.data
     },
     getUsage: getCopilotUsage,
-    getOverview: async () => {
-      return getRequestLogRepository().getOverview()
+    getOverview: async (filter) => {
+      return getRequestLogRepository().getOverview(filter)
     },
-    getModelBreakdown: async () => {
-      const rows = await getRequestLogRepository().getModelBreakdown()
+    getModelBreakdown: async (filter) => {
+      const rows = await getRequestLogRepository().getModelBreakdown(filter)
 
       return Promise.all(
         rows.map(async (row) => {

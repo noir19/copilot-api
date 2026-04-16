@@ -10,7 +10,7 @@ import {
 } from "recharts"
 
 import { loadTimeSeries, type TimeSeriesPoint } from "../../lib/dashboard-api"
-import { formatCompactNumber, formatNumber } from "../../lib/format"
+import { formatCompactNumber, formatNumber, formatUsd } from "../../lib/format"
 import { cn } from "../../lib/utils"
 import { Button } from "../ui/button"
 import {
@@ -22,7 +22,11 @@ import {
 } from "../ui/card"
 import { Input } from "../ui/input"
 
-type TrendMetric = "requests" | "inputTokens" | "outputTokens" | "errors"
+type TrendMetric =
+  | "requests"
+  | "inputTokens"
+  | "outputTokens"
+  | "estimatedCostUsd"
 type Granularity = "day" | "week" | "month" | "year"
 type WindowMode = "rolling" | "calendar"
 type NaturalPeriodValues = {
@@ -36,7 +40,7 @@ const METRIC_CONFIG: Record<TrendMetric, { label: string; color: string }> = {
   requests: { label: "请求数", color: "#6366f1" },
   inputTokens: { label: "Input Token", color: "#0ea5e9" },
   outputTokens: { label: "Output Token", color: "#14b8a6" },
-  errors: { label: "错误数", color: "#f43f5e" },
+  estimatedCostUsd: { label: "费用", color: "#f59e0b" },
 }
 
 const GRANULARITY_CONFIG: Record<
@@ -336,12 +340,12 @@ export function RequestTrendCard({
             }}
             formatter={(value, name) => {
               const label =
-                typeof name === "string"
-                  ? name
-                  : metric === "requests"
-                    ? "请求数"
-                    : "错误数"
-              return [formatNumber(Number(value)), label]
+                typeof name === "string" ? name : METRIC_CONFIG[metric].label
+              const formatted =
+                metric === "estimatedCostUsd"
+                  ? formatUsd(Number(value))
+                  : formatNumber(Number(value))
+              return [formatted, label]
             }}
             labelFormatter={(label) => tooltipFormat(String(label))}
           />
@@ -449,13 +453,13 @@ export function RequestTrendCard({
                 <span>{naturalHint}</span>
               </div>
             ) : null}
-            <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
+            <div className="ml-auto flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
               {(
                 [
                   ["requests", { label: "请求数", color: "#6366f1" }],
                   ["inputTokens", { label: "Input", color: "#0ea5e9" }],
                   ["outputTokens", { label: "Output", color: "#14b8a6" }],
-                  ["errors", { label: "错误数", color: "#f43f5e" }],
+                  ["estimatedCostUsd", { label: "费用", color: "#f59e0b" }],
                 ] as const
               ).map(([key, cfg]) => (
                 <button
@@ -486,7 +490,9 @@ export function RequestTrendCard({
               当前窗口总计
             </p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-slate-950">
-              {formatNumber(total)}
+              {metric === "estimatedCostUsd"
+                ? formatUsd(total)
+                : formatNumber(total)}
             </p>
           </div>
           <div className="rounded-2xl bg-slate-50 px-4 py-3">
@@ -502,7 +508,9 @@ export function RequestTrendCard({
               峰值数字
             </p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-slate-950">
-              {formatNumber(peakValue)}
+              {metric === "estimatedCostUsd"
+                ? formatUsd(peakValue)
+                : formatNumber(peakValue)}
             </p>
           </div>
           <div className="rounded-2xl bg-slate-50 px-4 py-3">

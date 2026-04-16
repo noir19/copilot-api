@@ -19,6 +19,24 @@ import { cn } from "./lib/utils"
 
 type DashboardTab = "overview" | "logs" | "models" | "settings"
 
+type TimeRange = "24h" | "7d" | "30d" | "all"
+
+const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
+  { label: "24h", value: "24h" },
+  { label: "7天", value: "7d" },
+  { label: "30天", value: "30d" },
+  { label: "全部", value: "all" },
+]
+
+function getTimeFrom(range: TimeRange): string | undefined {
+  if (range === "all") return undefined
+  const now = new Date()
+  if (range === "24h") now.setHours(now.getHours() - 24)
+  else if (range === "7d") now.setDate(now.getDate() - 7)
+  else if (range === "30d") now.setDate(now.getDate() - 30)
+  return now.toISOString()
+}
+
 const TAB_ITEMS: Array<{
   icon: typeof Activity
   key: DashboardTab
@@ -33,9 +51,13 @@ const TAB_ITEMS: Array<{
 function DashboardHeader({
   isRefreshing,
   onRefresh,
+  timeRange,
+  onTimeRangeChange,
 }: {
   isRefreshing: boolean
   onRefresh: () => void
+  timeRange: TimeRange
+  onTimeRangeChange: (range: TimeRange) => void
 }) {
   return (
     <header className="rounded-2xl border border-slate-200/70 bg-white/80 px-5 py-4 shadow-sm backdrop-blur">
@@ -61,7 +83,24 @@ function DashboardHeader({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+            {TIME_RANGE_OPTIONS.map((opt) => (
+              <button
+                className={cn(
+                  "rounded-md px-3 py-1 text-xs font-medium transition-all",
+                  timeRange === opt.value
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700",
+                )}
+                key={opt.value}
+                onClick={() => onTimeRangeChange(opt.value)}
+                type="button"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
           <Button
             disabled={isRefreshing}
             onClick={onRefresh}
@@ -172,6 +211,7 @@ function DashboardContent({
 
 export function App() {
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview")
+  const [timeRange, setTimeRange] = useState<TimeRange>("all")
   const [aliasesResponse, setAliasesResponse] =
     useState<AliasesResponse | null>(null)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
@@ -179,28 +219,40 @@ export function App() {
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  const refresh = useCallback(async () => {
-    setIsRefreshing(true)
-    setError(null)
+  const refresh = useCallback(
+    async (range: TimeRange = timeRange) => {
+      setIsRefreshing(true)
+      setError(null)
 
-    try {
-      const [data, aliases] = await Promise.all([
-        loadDashboardData(),
-        loadAliases(),
-      ])
-      setDashboardData(data)
-      setAliasesResponse(aliases)
-    } catch (refreshError) {
-      setError(
-        refreshError instanceof Error
-          ? refreshError.message
-          : "加载面板数据失败",
-      )
-    } finally {
-      setIsLoading(false)
-      setIsRefreshing(false)
-    }
-  }, [])
+      try {
+        const timeFrom = getTimeFrom(range)
+        const [data, aliases] = await Promise.all([
+          loadDashboardData(timeFrom),
+          loadAliases(),
+        ])
+        setDashboardData(data)
+        setAliasesResponse(aliases)
+      } catch (refreshError) {
+        setError(
+          refreshError instanceof Error
+            ? refreshError.message
+            : "加载面板数据失败",
+        )
+      } finally {
+        setIsLoading(false)
+        setIsRefreshing(false)
+      }
+    },
+    [timeRange],
+  )
+
+  const handleTimeRangeChange = useCallback(
+    (range: TimeRange) => {
+      setTimeRange(range)
+      void refresh(range)
+    },
+    [refresh],
+  )
 
   useEffect(() => {
     void refresh()
@@ -213,6 +265,8 @@ export function App() {
           <DashboardHeader
             isRefreshing={isRefreshing}
             onRefresh={() => void refresh()}
+            timeRange={timeRange}
+            onTimeRangeChange={handleTimeRangeChange}
           />
           <DashboardTabs activeTab={activeTab} onSelect={setActiveTab} />
           {activeTab === "overview" && dashboardData && !isLoading && !error ? (

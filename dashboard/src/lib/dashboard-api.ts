@@ -121,6 +121,7 @@ export interface TimeSeriesPoint {
   outputTokens: number
   tokens: number
   errors: number
+  estimatedCostUsd: number
 }
 
 export interface SettingsResponse {
@@ -188,14 +189,22 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T
 }
 
-export async function loadDashboardData(): Promise<DashboardData> {
+export async function loadDashboardData(
+  timeFrom?: string,
+  timeTo?: string,
+): Promise<DashboardData> {
+  const timeParams = new URLSearchParams()
+  if (timeFrom) timeParams.set("timeFrom", timeFrom)
+  if (timeTo) timeParams.set("timeTo", timeTo)
+  const timeQuery = timeParams.toString() ? `?${timeParams.toString()}` : ""
+
   const [overview, usage, models, timeSeries, supportedModels] =
     await Promise.all([
-      fetchJson<RequestOverview>("/api/dashboard/overview"),
+      fetchJson<RequestOverview>(`/api/dashboard/overview${timeQuery}`),
       fetchJson<CopilotUsageResponse>("/api/dashboard/usage"),
-      fetchJson<ModelsResponse>("/api/dashboard/models"),
+      fetchJson<ModelsResponse>(`/api/dashboard/models${timeQuery}`),
       fetchJson<TimeSeriesResponse>(
-        "/api/dashboard/time-series?bucket=60&limit=24",
+        `/api/dashboard/time-series?bucket=60&limit=24${timeFrom ? `&timeFrom=${encodeURIComponent(timeFrom)}` : ""}${timeTo ? `&timeTo=${encodeURIComponent(timeTo)}` : ""}`,
       ),
       fetchJson<SupportedModelsResponse>("/api/dashboard/supported-models"),
     ])

@@ -518,16 +518,18 @@ Token Manager 重新读取整个 github_token JSON
 
 ## 推荐使用方式
 
+> 以下示例使用源码运行方式。如果你是通过 npm 安装的（`npm install -g copilot-api`），把 `bun run start` 替换为 `copilot-api` 即可。
+
 ### 本地或宿主机先执行一次 auth
 
 ```sh
-npx copilot-api@latest auth
+bun run start auth
 ```
 
 ### 长期运行服务时优先使用 watched token file
 
 ```sh
-npx copilot-api@latest start --github-token-file ~/.local/share/copilot-api/github_token
+bun run start start --github-token-file ~/.local/share/copilot-api/github_token
 ```
 
 ### Docker 推荐方式
@@ -568,9 +570,9 @@ Dashboard 由两部分组成：前端 SPA（构建后输出到 `dist/dashboard/`
         ▼
   createDashboardRoute()  (src/routes/dashboard/route.ts)
         │
-        ├── GET /overview          ← 请求总量、错误率、延迟、token 统计
+        ├── GET /overview          ← 请求总量、错误率、延迟、token 统计（支持 timeFrom/timeTo 过滤）
         ├── GET /usage             ← 实时 Copilot 配额（转发自 GitHub API）
-        ├── GET /models            ← 模型分布 + OpenRouter 费用估算
+        ├── GET /models            ← 模型分布 + OpenRouter 费用估算（支持 timeFrom/timeTo 过滤）
         ├── GET /time-series       ← 可配置粒度的趋势分桶数据
         ├── GET /requests          ← 服务端分页的请求日志（支持过滤）
         ├── GET /requests/count    ← 分页用总计数
@@ -632,3 +634,63 @@ resolveModelName()  下一条请求即使用最新的映射
 ```
 
 `model_aliases` 使用 `(source_model, enabled)` 作为复合主键，同时保留 `id` 作为 Dashboard 编辑/删除时使用的稳定行标识。同一个请求模型可以同时保留一条启用配置和一条停用配置；同一请求模型 + 同一状态重复写入时，接口会返回明确的 `409 model_alias_conflict`，而不是泛泛的内部错误。
+
+### Dashboard 功能说明
+
+Dashboard 标签页：
+
+- **概览（Overview）**：请求总量、成功率、延迟、token 用量、OpenRouter 等价费用估算、Copilot 配额卡片、模型分布、请求趋势图。趋势图支持切换指标（请求数 / 输入 token / 输出 token / 费用）。页面右上角有时间范围选择器（24h / 7天 / 30天 / 全部），切换后 overview 卡片和模型分布数据同步按时间过滤。
+- **日志（Logs）**：服务端分页的请求日志，支持按模型、路由、状态、时间段过滤。
+- **模型映射（Model Aliases）**：别名增删改查，支持启用/禁用，写入后立即生效无需重启；同时展示 Copilot 当前支持的模型列表，便于配置目标模型。
+- **设置（Settings）**：日志保留策略（天数）和异步写入队列参数（刷写间隔、批大小、队列上限等）。
+
+### 运行时架构
+
+Bun 在单进程内同时承担后端运行时和静态文件服务器两个角色，但不同模式下实际加载的内容不同：
+
+| 模式 | 后端入口 | 后端加载的是 | 前端 |
+|------|---------|------------|------|
+| 本地开发 | `bun run ./src/main.ts` | TypeScript 源码（Bun 原生执行） | `dist/dashboard/`（预构建产物） |
+| Docker / npm | `bun run dist/main.js` | tsdown 打包产物 | `dist/dashboard/`（预构建产物） |
+
+两种模式下，`/dashboard` 路由都从 `dist/dashboard/` 读取静态文件——前端始终需要先构建。区别只在后端入口：本地开发直接跑源码，Docker/npm 跑编译后的产物。
+
+`tsdown`（`build:server`）只在构建 Docker 镜像或发布 npm 时才需要，本地开发完全不涉及它。
+
+```
+本地开发模式                         Docker / npm 模式
+────────────────────────────        ─────────────────────────────
+Bun 加载: src/main.ts               Bun 加载: dist/main.js
+（TypeScript 源码，原生执行）          （tsdown 打包产物）
+        │                                    │
+        └──────── 两者均从 dist/dashboard/ 提供前端静态文件 ────────┘
+```
+
+前端无论哪种模式都必须先构建：
+
+```sh
+bun run build:dashboard   # Vite → dist/dashboard/
+# 或: bun run build       # tsdown + Vite（Docker 构建时使用）
+```
+
+### 前端开发
+
+**默认模式**（后端热加载，前端改动后手动重建）：
+```sh
+bun run --watch ./src/main.ts start --port 4141
+# 改了前端后：
+bun run build:dashboard
+```
+
+**前端 HMR 模式**（推荐前端开发时使用）：
+```sh
+# 终端 1：启动后端
+bun run --watch ./src/main.ts start --port 4141
+
+# 终端 2：启动 Vite 开发服务器（端口 4173，/api/* 代理到 4141）
+bun run dev:dashboard
+```
+
+访问 `http://localhost:4173/dashboard`，前端改动即时生效，API 请求透明转发到后端。
+
+**Docker**：镜像内运行的是 `bun run dist/main.js`（tsdown 产物）。Dockerfile 中的 `bun run build` 在镜像构建阶段同时生成 `dist/main.js` 和 `dist/dashboard/`，最终镜像只复制 `dist/` 目录，不包含源码。

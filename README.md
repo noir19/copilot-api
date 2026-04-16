@@ -588,10 +588,8 @@ The dashboard is now served directly by the proxy and reads real data from:
 
 Current dashboard tabs:
 
-- **Overview**: real request totals, success/error rates, latency, token totals, Copilot quota cards, model distribution, and request trend chart (day/week/month/year granularity)
-- **Overview**: real request totals, success/error rates, latency, token totals, OpenRouter cost estimate, Copilot quota cards, model distribution, and request trend chart (default hourly / 24h window)
+- **Overview**: real request totals, success/error rates, latency, token totals, OpenRouter cost estimate, Copilot quota cards, model distribution, and request trend chart (requests / input tokens / output tokens / estimated cost; supports 24h / 7d / 30d / all time range filtering)
 - **Logs**: server-side paginated request logs with model/route/status/time filtering
-- **Model Aliases**: create, edit, delete, and enable or disable request-path aliases that are persisted in SQLite and reloaded into the in-memory cache
 - **Model Aliases**: create, edit, delete, and enable or disable request-path aliases that are persisted in SQLite and reloaded into the in-memory cache; the dashboard also shows the current Copilot-supported model list for easier configuration
 - **Settings**: log retention policy and async queue configuration
 
@@ -604,19 +602,42 @@ The dashboard data is persisted in the same application data directory used for 
 - override retention with `COPILOT_API_REQUEST_LOG_RETENTION_DAYS`
 - override background cleanup cadence with `COPILOT_API_REQUEST_LOG_CLEANUP_INTERVAL_MS`
 
-For frontend development:
+### Runtime architecture
 
+Bun serves two roles in one process — backend runtime and static file server — but what it actually loads differs by mode:
+
+| Mode | Backend entry | Backend source | Frontend |
+|------|--------------|----------------|----------|
+| Local dev | `bun run ./src/main.ts` | TypeScript source (Bun executes natively) | `dist/dashboard/` (pre-built) |
+| Docker / npm | `bun run dist/main.js` | tsdown bundle (compiled by `build:server`) | `dist/dashboard/` (pre-built) |
+
+In both modes, the `/dashboard` route reads static assets from `dist/dashboard/` — the frontend always needs to be built first. Only the backend entry point differs: local dev runs straight from source, Docker/npm run the compiled bundle.
+
+`tsdown` (`build:server`) is only needed when building a Docker image or publishing to npm. Local development skips it entirely.
+
+**Important**: `bun --watch ./src/main.ts` only hot-reloads the backend — it does not trigger a frontend rebuild. If you update frontend code, run `bun run build:dashboard` to regenerate `dist/dashboard/`; bun will serve the new assets on the next request. Use HMR mode below to avoid this manual step.
+
+### Development workflows
+
+**Default mode** (backend hot-reloads; rebuild frontend manually when needed):
 ```sh
+bun run --watch ./src/main.ts start --port 4141
+# after frontend changes:
+bun run build:dashboard
+```
+
+**Frontend HMR mode** (recommended when iterating on the dashboard):
+```sh
+# Terminal 1: backend
+bun run --watch ./src/main.ts start --port 4141
+
+# Terminal 2: Vite dev server (port 4173, proxies /api/* to 4141)
 bun run dev:dashboard
 ```
 
-For production assets:
+Open `http://localhost:4173/dashboard` — frontend changes are instant, API calls are forwarded to the backend transparently.
 
-```sh
-bun run build
-```
-
-This builds the server bundle and the dashboard assets into `dist/dashboard`, which are then served by the `/dashboard` routes.
+**Docker**: the image runs `bun run dist/main.js` (the tsdown bundle). `bun run build` in the Dockerfile produces both `dist/main.js` and `dist/dashboard/` before the production image is assembled.
 
 ## Using with Claude Code
 

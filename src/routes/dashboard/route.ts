@@ -25,8 +25,14 @@ interface DashboardRouteDeps {
   getSupportedModels(): Promise<Array<Model>>
   refreshSupportedModels(): Promise<Array<Model>>
   getUsage(): Promise<CopilotUsageResponse>
-  getOverview(): Promise<RequestOverview>
-  getModelBreakdown(): Promise<Array<ModelBreakdownRow>>
+  getOverview(filter?: {
+    timeFrom?: string
+    timeTo?: string
+  }): Promise<RequestOverview>
+  getModelBreakdown(filter?: {
+    timeFrom?: string
+    timeTo?: string
+  }): Promise<Array<ModelBreakdownRow>>
   listAliases(): Promise<Array<ModelAliasRecord>>
   getRecentRequests(options: {
     limit: number
@@ -88,7 +94,11 @@ export function createDashboardRoute(deps: DashboardRouteDeps) {
   }
 
   route.get("/overview", async (c) => {
-    const overview = await deps.getOverview()
+    const timeFrom = c.req.query("timeFrom")
+    const timeTo = c.req.query("timeTo")
+    const overview = await deps.getOverview(
+      timeFrom || timeTo ? { timeFrom, timeTo } : undefined,
+    )
     return c.json(overview)
   })
 
@@ -112,7 +122,11 @@ export function createDashboardRoute(deps: DashboardRouteDeps) {
   })
 
   route.get("/models", async (c) => {
-    const data = await deps.getModelBreakdown()
+    const timeFrom = c.req.query("timeFrom")
+    const timeTo = c.req.query("timeTo")
+    const data = await deps.getModelBreakdown(
+      timeFrom || timeTo ? { timeFrom, timeTo } : undefined,
+    )
     return c.json({ data })
   })
 
