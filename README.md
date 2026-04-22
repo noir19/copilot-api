@@ -609,9 +609,9 @@ Bun serves two roles in one process — backend runtime and static file server �
 | Mode | Backend entry | Backend source | Frontend |
 |------|--------------|----------------|----------|
 | Local dev | `bun run ./src/main.ts` | TypeScript source (Bun executes natively) | `dist/dashboard/` (pre-built) |
-| Docker / npm | `bun run dist/main.js` | tsdown bundle (compiled by `build:server`) | `dist/dashboard/` (pre-built) |
+| Docker / published binary | `bun run dist/main.js` | tsdown bundle (compiled by `build:server`) | `dist/dashboard/` (pre-built) |
 
-In both modes, the `/dashboard` route reads static assets from `dist/dashboard/` — the frontend always needs to be built first. Only the backend entry point differs: local dev runs straight from source, Docker/npm run the compiled bundle.
+In both modes, the `/dashboard` route reads static assets from `dist/dashboard/` — the frontend always needs to be built first. Only the backend entry point differs: local dev runs straight from source, Docker/published binary runs the compiled bundle.
 
 `tsdown` (`build:server`) is only needed when building a Docker image or publishing to npm. Local development skips it entirely.
 

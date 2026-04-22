@@ -169,6 +169,7 @@ function createReadOnlyApp(
             outputTokens: 600,
             tokens: 1000,
             errors: 1,
+            estimatedCostUsd: 0,
           },
         ])
       },

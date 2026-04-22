@@ -314,6 +314,7 @@ describe("request logs repository", () => {
       outputTokens: 200,
       tokens: 300,
       errors: 0,
+      estimatedCostUsd: 0,
     })
     expect(series[1]).toEqual({
       bucket: "2026-04-08T00:00:00Z",
@@ -322,6 +323,7 @@ describe("request logs repository", () => {
       outputTokens: 0,
       tokens: 0,
       errors: 0,
+      estimatedCostUsd: 0,
     })
     expect(series[2]).toEqual({
       bucket: "2026-04-09T00:00:00Z",
@@ -330,6 +332,7 @@ describe("request logs repository", () => {
       outputTokens: 0,
       tokens: 50,
       errors: 1,
+      estimatedCostUsd: 0,
     })
   })
 
@@ -421,6 +424,7 @@ describe("request logs repository", () => {
       outputTokens: 25,
       tokens: 125,
       errors: 0,
+      estimatedCostUsd: 0,
     })
     expect(series.reduce((sum, point) => sum + point.requests, 0)).toBe(1)
   })
